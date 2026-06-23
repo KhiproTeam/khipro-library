@@ -1,0 +1,10 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: @KHIPRO_NAME@
+Description: @KHIPRO_DESCRIPTION@
+Version: @KHIPRO_LIBRARY_VERSION@
+Libs: -L${libdir} -lkhipro
+Cflags: -I${includedir}

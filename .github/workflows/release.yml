@@ -1,0 +1,241 @@
+name: Release
+
+# Daily + manual release pipeline. Does NOT run on push or pull_request —
+# keep CI cheap; rely on local `make test` before pushing.
+#
+# Two paths lead to a release:
+#
+#   a. Upstream m17n publishes a new stable tag that is common to BOTH
+#      rank-coder/khipro-m17n AND KhiproTeam/khipro-mim-touchscreen.
+#      sync.sh detects this, bumps layout_version, resets library_patch=0.
+#
+#   b. A developer manually edits khipro.meta (typically bumping
+#      library_patch for a library-only fix) and pushes to main. Triggering
+#      this workflow via workflow_dispatch then tags and releases that state.
+#
+# The release pipeline runs:
+#   sync → compare → build → test → commit → tag → push → release
+#
+# If anything fails (build, test, network, version mismatch, no upstream
+# update), the release exits as a no-op. The next day's cron tries again.
+
+on:
+  schedule:
+    - cron: '17 4 * * *'  # 04:17 UTC daily (off-minute to spread load)
+  workflow_dispatch:
+
+# contents: write → push commits/tags to main, create GitHub releases
+permissions:
+  contents: write
+
+# Don't cancel an in-progress run — release runs need to finish so partial
+# state (committed khipro.meta, pushed tag) gets either completed or
+# recovered on the next run.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history, for git describe)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Make scripts executable
+        run: chmod +x scripts/build.sh scripts/targets/*.sh scripts/resources/*.sh
+
+      # -------------------------------------------------------------------
+      # Check 1 — Upstream m17n sync + testcase refresh.
+      # fetch.sh is a superset of sync.sh: it syncs the m17n .mim files +
+      # khipro.meta + .lock (same as sync.sh), AND downloads the latest
+      # khipro-testcases CSVs from their repos @ main, AND regenerates
+      # core/src/embedded_specs.h (gitignored — never committed).
+      #
+      # If m17n repos have no new common stable tag, sync exits 0 with no
+      # changes to khipro.meta — but the testcase CSVs may still update
+      # independently from their main branches.
+      # -------------------------------------------------------------------
+      - name: Sync upstream m17n + refresh testcases
+        run: ./scripts/resources/fetch.sh
+
+      # -------------------------------------------------------------------
+      # Check 2 — Version-vs-tag comparison.
+      # Decides whether a release is needed by comparing khipro.meta's
+      # version against the latest git tag. Works for both release paths:
+      #   - m17n sync bumped layout_version → meta is ahead of tag
+      #   - manual patch bump in khipro.meta → meta is ahead of tag
+      #   - already up to date → meta matches tag, skip
+      # -------------------------------------------------------------------
+      - name: Decide if release is needed
+        id: check
+        run: |
+          meta_layout="$(grep '^layout_version=' khipro.meta | cut -d= -f2 | tr -d '[:space:]')"
+          meta_patch="$(grep   '^library_patch='   khipro.meta | cut -d= -f2 | tr -d '[:space:]')"
+          meta_version="${meta_layout}-${meta_patch}"
+
+          latest_tag="$(git describe --tags --abbrev=0 2>/dev/null || echo '')"
+          latest_normalized="${latest_tag#v}"
+
+          echo "::notice::khipro.meta version: ${meta_version}"
+          if [[ -n "$latest_tag" ]]; then
+            echo "::notice::Latest git tag:      ${latest_tag}"
+          else
+            echo "::notice::Latest git tag:      <none, first release>"
+          fi
+
+          if [[ -n "$latest_normalized" && "$meta_version" == "$latest_normalized" ]]; then
+            echo "::notice::Skipping — khipro.meta matches latest tag. No new m17n upstream and no manual bump."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Verify meta is actually ahead, not behind (would indicate a downgrade)
+          if [[ -n "$latest_normalized" ]] \
+             && ! [[ "$(printf '%s\n%s\n' "$latest_normalized" "$meta_version" | sort -V | tail -1)" == "$meta_version" ]]; then
+            echo "::error::khipro.meta version ${meta_version} is OLDER than latest tag ${latest_tag}. Refusing to downgrade."
+            exit 1
+          fi
+
+          target_tag="v${meta_version}"
+          echo "skip=false"        >> "$GITHUB_OUTPUT"
+          echo "tag=${target_tag}" >> "$GITHUB_OUTPUT"
+          echo "::notice::Release needed → ${target_tag}"
+
+      - name: Stop if no release needed
+        if: steps.check.outputs.skip == 'true'
+        run: echo "Workflow complete — nothing released today."
+
+      # -------------------------------------------------------------------
+      # Check 3 — Build + test gate.
+      # All four platform builds must succeed. Any failure → no release.
+      # -------------------------------------------------------------------
+      - name: Build + conformance tests (Linux)
+        if: steps.check.outputs.skip != 'true'
+        run: ./scripts/build.sh test
+
+      - name: Cross-platform verification (Windows, Android, Wasm)
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          ./scripts/build.sh windows
+          ./scripts/build.sh android
+          ./scripts/build.sh wasm
+          echo "All platform builds OK"
+          ls -la dist/windows/x86_64/bin/
+          ls -la dist/android/jniLibs/arm64-v8a/
+          ls -la dist/wasm/
+          ls -la dist/android/*.aar
+
+      # -------------------------------------------------------------------
+      # Package dist/ into release archives.
+      # Format per platform:
+      #   linux   → .tar.gz  (preserves symlinks + perms + pkg-config)
+      #   windows → .zip     (Windows consumers expect zip)
+      #   wasm    → .zip     (matches npm/web ecosystem)
+      #   android → .aar     (standalone — AAR is already an archive)
+      # -------------------------------------------------------------------
+      - name: Package dist artifacts
+        if: steps.check.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.check.outputs.tag }}
+        run: |
+          ver="${TAG#v}"
+          mkdir -p dist-artifacts
+
+          # Linux — tar.gz preserves the libkhipro.so symlink chain
+          tar -czf "dist-artifacts/khipro-${ver}-linux-x86_64.tar.gz" \
+              -C dist linux/x86_64
+
+          # Windows — zip (built via MinGW, cross-compiled on Linux runner)
+          (cd dist && zip -r --quiet \
+              "../dist-artifacts/khipro-${ver}-windows-x86_64.zip" \
+              windows/x86_64)
+
+          # Wasm — zip the package contents
+          (cd dist && zip -r --quiet \
+              "../dist-artifacts/khipro-${ver}-wasm.zip" \
+              wasm)
+
+          # Android — copy the AAR as-is (it's its own archive)
+          cp "dist/android/khipro-${ver}.aar" \
+             "dist-artifacts/khipro-${ver}-android.aar"
+
+          echo "--- artifacts ---"
+          ls -la dist-artifacts/
+
+      # -------------------------------------------------------------------
+      # Release sequence — order matters.
+      #   1. Commit (only if there are staged changes; manual patch path
+      #      may have nothing to commit because the developer already did)
+      #   2. Tag the resulting HEAD
+      #   3. Push main + tag together
+      #   4. Create the GitHub release pointing at the tag
+      #   5. Upload prebuilt artifacts to the release
+      # -------------------------------------------------------------------
+      - name: Commit resources
+        if: steps.check.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.check.outputs.tag }}
+        run: |
+          git add khipro.meta resources/.lock \
+                  resources/bn-khipro.mim resources/bn-khipro-touchscreen.mim \
+                  resources/khipro-testcases.csv resources/khipro-testcases-touch.csv
+          if git diff --staged --quiet; then
+            echo "No staged changes (likely a manual patch release); tagging current HEAD."
+          else
+            git commit -m "chore: bump to ${TAG}"
+          fi
+
+      - name: Tag
+        if: steps.check.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.check.outputs.tag }}
+        run: git tag "$TAG"
+
+      - name: Push main + tag
+        if: steps.check.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.check.outputs.tag }}
+        run: git push origin main --tags
+
+      - name: Create GitHub release
+        if: steps.check.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.check.outputs.tag }}
+        run: |
+          # Idempotent: if a previous run pushed the tag but failed at the
+          # release step, re-running this is safe.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists; nothing to create."
+            exit 0
+          fi
+
+          # Auto-generate notes from commits since the previous tag.
+          # On the very first release there is no prev tag — `git describe`
+          # exits non-zero, the `|| echo ''` fallback yields empty, and we
+          # skip --notes-start-tag. GitHub then generates notes from all
+          # commits, which is the right behavior for an initial release.
+          prev_tag="$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo '')"
+          args=(--title "$TAG" --generate-notes)
+          if [[ -n "$prev_tag" ]]; then
+            args+=(--notes-start-tag "$prev_tag")
+          fi
+          gh release create "$TAG" "${args[@]}"
+
+      - name: Upload artifacts to release
+        if: steps.check.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.check.outputs.tag }}
+        run: |
+          # Idempotent: --clobber overwrites any partial upload from a
+          # previously-failed run of this same tag.
+          gh release upload "$TAG" dist-artifacts/* --clobber

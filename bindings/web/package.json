@@ -1,0 +1,17 @@
+{
+  "name": "@khiproteam/khipro",
+  "version": "35.0.1-2",
+  "description": "Khipro Bengali compositional input method (WebAssembly)",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0"
+  }
+}

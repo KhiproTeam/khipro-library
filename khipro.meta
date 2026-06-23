@@ -1,0 +1,14 @@
+# Khipro library metadata — single source of truth.
+# Hand-edited for identity fields.
+# layout_version and library_patch are managed by scripts/resources/sync.sh.
+
+# Package identity
+name=khipro
+description=Cross-platform IME library for the Khipro compositional Bangla layout
+homepage=https://github.com/khiproteam/library
+license=MIT
+author=KhiproTeam
+
+# Versioning — library_version = "${layout_version}-${library_patch}"
+layout_version=35.0.1
+library_patch=1

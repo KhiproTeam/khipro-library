@@ -1,0 +1,10 @@
+LIBRARY khipro
+EXPORTS
+khipro_create
+khipro_destroy
+khipro_feed_key
+khipro_backspace
+khipro_commit
+khipro_reset
+khipro_convert
+khipro_version
