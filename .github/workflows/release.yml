@@ -38,6 +38,10 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # Exposed for the macos job below, which can't share this Linux runner.
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+      tag: ${{ steps.check.outputs.tag }}
     steps:
       - name: Checkout (full history, for git describe)
         uses: actions/checkout@v4
@@ -239,3 +243,46 @@ jobs:
           # Idempotent: --clobber overwrites any partial upload from a
           # previously-failed run of this same tag.
           gh release upload "$TAG" dist-artifacts/* --clobber
+
+  # ---------------------------------------------------------------------
+  # macOS can't be cross-compiled from the Linux runner, so it builds on
+  # its own macos-latest runner after the release job has created the tag
+  # + GitHub release, then attaches the universal artifact to that release.
+  # ---------------------------------------------------------------------
+  macos:
+    needs: release
+    if: needs.release.outputs.skip != 'true'
+    runs-on: macos-latest
+    steps:
+      - name: Checkout the released tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+
+      - name: Make scripts executable
+        run: chmod +x scripts/build.sh scripts/targets/*.sh scripts/resources/*.sh
+
+      # Resources are pinned at the tagged commit; KHIPRO_NO_SYNC=1 skips the
+      # upstream check. embedded_specs.h is regenerated locally at build time.
+      - name: Build universal macOS library
+        env:
+          KHIPRO_NO_SYNC: "1"
+          KHIPRO_MACOS_ARCH: universal
+        run: ./scripts/build.sh macos
+
+      - name: Package macOS artifact
+        env:
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          ver="${TAG#v}"
+          mkdir -p dist-artifacts
+          # tar.gz preserves perms + the @rpath dylib
+          tar -czf "dist-artifacts/khipro-${ver}-macos-universal.tar.gz" \
+              -C dist macos/universal
+          ls -la dist/macos/universal/lib/
+
+      - name: Upload macOS artifact to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: gh release upload "$TAG" dist-artifacts/* --clobber

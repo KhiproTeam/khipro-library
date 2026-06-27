@@ -1,10 +1,11 @@
 # Khipro integration docs
 
-Each release on the [releases page](https://github.com/khiproteam/library/releases) ships four prebuilt bundles — pick yours and follow its doc:
+Each release on the [releases page](https://github.com/khiproteam/library/releases) ships five prebuilt bundles — pick yours and follow its doc:
 
 | Bundle | What's inside | Doc |
 |---|---|---|
 | `khipro-<ver>-linux-x86_64.tar.gz` | `.so` + `.a` + `khipro.pc` + headers | [linux.md](linux.md) |
+| `khipro-<ver>-macos-universal.tar.gz` | universal `.dylib` + `.a` + headers | [macos.md](macos.md) |
 | `khipro-<ver>-windows-x86_64.zip` | `khipro.dll` + import lib + headers | [windows.md](windows.md) |
 | `khipro-<ver>-android.aar` | Per-ABI `.so` (4 ABIs) + Kotlin bindings | [android.md](android.md) |
 | `khipro-<ver>-wasm.zip` | `khipro.js` + `khipro.wasm` + ESM wrapper + types | [wasm.md](wasm.md) |

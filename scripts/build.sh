@@ -6,6 +6,7 @@
 #
 # Targets:
 #   linux     Linux .so + .a (+ tests)
+#   macos     macOS .dylib + .a (+ tests) — host-only, requires a Mac
 #   windows   Windows x86_64 .dll
 #   android   Android .so per ABI
 #   wasm      WebAssembly .js + .wasm
@@ -30,7 +31,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/targets/common.sh"
 
 usage() {
-  sed -n '3,21p' "$0"
+  sed -n '3,22p' "$0"
   exit "${1:-0}"
 }
 
@@ -112,6 +113,13 @@ run_native() {
 build_one() {
   local name="$1"
 
+  # macOS has no container path (no macOS containers / cross-compile from
+  # Linux), so it always builds natively on the host.
+  if [[ "$name" == "macos" ]]; then
+    run_native "macos"
+    return
+  fi
+
   if [[ "$USE_NATIVE" == "true" ]]; then
     case "$name" in
       test) run_native "linux" ;;
@@ -143,7 +151,7 @@ fi
 FAILED=0
 for t in "${TARGETS[@]}"; do
   case "$t" in
-    linux|windows|android|wasm|test)
+    linux|macos|windows|android|wasm|test)
       build_one "$t" || FAILED=$((FAILED + 1))
       ;;
     all)

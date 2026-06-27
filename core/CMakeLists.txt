@@ -48,7 +48,9 @@ function(khipro_apply_target_flags target_name)
     -fvisibility=hidden
     -fvisibility-inlines-hidden
   )
-  if(NOT MSVC)
+  if(APPLE)
+    target_link_options(${target_name} PRIVATE -Wl,-dead_strip)  # ld64 has no --gc-sections
+  elseif(NOT MSVC)
     target_link_options(${target_name} PRIVATE -Wl,--gc-sections)
   endif()
   add_dependencies(${target_name} khipro_embed_specs)

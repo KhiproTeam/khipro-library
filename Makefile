@@ -1,10 +1,13 @@
-.PHONY: all linux windows android wasm test clean dist
+.PHONY: all linux macos windows android wasm test clean dist
 
 all:
 	./scripts/build.sh all
 
 linux:
 	./scripts/build.sh linux
+
+macos:
+	./scripts/build.sh macos
 
 windows:
 	./scripts/build.sh windows
