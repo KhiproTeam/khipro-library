@@ -10,5 +10,5 @@ license=MIT
 author=KhiproTeam
 
 # Versioning — library_version = "${layout_version}-${library_patch}"
-layout_version=35.0.1
-library_patch=2
+layout_version=35.0.2
+library_patch=0
