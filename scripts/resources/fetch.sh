@@ -17,7 +17,7 @@ download_testcases() {
   local repo="$1"
   local ref="$2"
   local dest="$3"
-  local url="https://raw.githubusercontent.com/${repo}/${ref}/khipro-testcases.csv"
+  local url="https://raw.githubusercontent.com/${repo}/${ref}/khipro-testcases.tsv"
   curl -fsSL --max-time 60 "$url" -o "$dest"
 }
 
@@ -29,8 +29,8 @@ TC_DEFAULT_REF="$(read_lock TESTCASES_DEFAULT_REF)"
 TC_TOUCH_REPO="$(read_lock TESTCASES_TOUCHSCREEN_REPO)"
 TC_TOUCH_REF="$(read_lock TESTCASES_TOUCHSCREEN_REF)"
 
-download_testcases "$TC_DEFAULT_REPO" "$TC_DEFAULT_REF" "$RESOURCES/khipro-testcases.csv"
-download_testcases "$TC_TOUCH_REPO" "$TC_TOUCH_REF" "$RESOURCES/khipro-testcases-touch.csv"
+download_testcases "$TC_DEFAULT_REPO" "$TC_DEFAULT_REF" "$RESOURCES/khipro-testcases.tsv"
+download_testcases "$TC_TOUCH_REPO" "$TC_TOUCH_REF" "$RESOURCES/khipro-testcases-touch.tsv"
 
 python3 "$ROOT/scripts/resources/embed.py" \
   --default "$RESOURCES/bn-khipro.mim" \

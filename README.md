@@ -30,7 +30,7 @@ bindings/     Language bindings (Android Kotlin, Web JS/Wasm)
 container/    Dockerfiles for cross-platform builds
 cmake/        CMake helper modules
 resources/    Bundled bn-khipro.mim specs + .lock (fetch provenance)
-tests/        Conformance tests against khipro-testcases CSV
+tests/        Conformance tests against khipro-testcases TSV
 scripts/      Build orchestration, m17n sync, codegen
 khipro.meta   Single source of truth for package metadata + version
 ```

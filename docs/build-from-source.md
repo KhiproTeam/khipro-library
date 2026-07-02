@@ -128,7 +128,7 @@ dist/
 
 ## Tests
 
-Conformance tests run as part of `make test` (Linux build + tests). They execute every case from `resources/khipro-testcases*.csv` against the engine:
+Conformance tests run as part of `make test` (Linux build + tests). They execute every case from `resources/khipro-testcases*.tsv` against the engine:
 
 ```bash
 make test
@@ -154,7 +154,7 @@ To force a refresh of the bundled `.mim` files and testcase CSVs:
 ./scripts/resources/fetch.sh
 ```
 
-This regenerates `resources/bn-khipro*.mim`, `resources/khipro-testcases*.csv`, `resources/.lock`, and `core/src/embedded_specs.h` (gitignored). Commit the first three if you're cutting a release manually; never commit `embedded_specs.h`.
+This regenerates `resources/bn-khipro*.mim`, `resources/khipro-testcases*.tsv`, `resources/.lock`, and `core/src/embedded_specs.h` (gitignored). Commit the first three if you're cutting a release manually; never commit `embedded_specs.h`.
 
 ## Clean
 

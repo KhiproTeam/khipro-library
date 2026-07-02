@@ -60,11 +60,11 @@ jobs:
       # Check 1 — Upstream m17n sync + testcase refresh.
       # fetch.sh is a superset of sync.sh: it syncs the m17n .mim files +
       # khipro.meta + .lock (same as sync.sh), AND downloads the latest
-      # khipro-testcases CSVs from their repos @ main, AND regenerates
+      # khipro-testcases TSVs from their repos @ main, AND regenerates
       # core/src/embedded_specs.h (gitignored — never committed).
       #
       # If m17n repos have no new common stable tag, sync exits 0 with no
-      # changes to khipro.meta — but the testcase CSVs may still update
+      # changes to khipro.meta — but the testcase TSVs may still update
       # independently from their main branches.
       # -------------------------------------------------------------------
       - name: Sync upstream m17n + refresh testcases
@@ -190,7 +190,7 @@ jobs:
         run: |
           git add khipro.meta resources/.lock \
                   resources/bn-khipro.mim resources/bn-khipro-touchscreen.mim \
-                  resources/khipro-testcases.csv resources/khipro-testcases-touch.csv
+                  resources/khipro-testcases.tsv resources/khipro-testcases-touch.tsv
           if git diff --staged --quiet; then
             echo "No staged changes (likely a manual patch release); tagging current HEAD."
           else
