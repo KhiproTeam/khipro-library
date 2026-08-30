@@ -90,7 +90,10 @@ version_gt() {
 }
 
 network_reachable() {
-  curl -fsSI --max-time 5 -o /dev/null "https://api.github.com" 2>/dev/null
+  # Probe the host actually used for downloads. api.github.com rejects
+  # unauthenticated HEADs with 403 when rate-limited, which made sync
+  # wrongly report offline on otherwise-connected machines.
+  curl -fsSI --max-time 5 -o /dev/null "https://raw.githubusercontent.com" 2>/dev/null
 }
 
 download_mim() {

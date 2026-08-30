@@ -73,25 +73,39 @@ run_container() {
   fi
 
   if [[ "$QUIET" != "true" ]]; then step "image"; fi
+  local img_rc=0
   "$engine" build -f "$ROOT/container/Dockerfile" --target "$target" \
-    -t "khipro-build-$target" "$ROOT" >/dev/null 2>&1
+    -t "khipro-build-$target" "$ROOT" >/dev/null 2>&1 || img_rc=$?
+  if [[ "$img_rc" -ne 0 ]]; then
+    fail "image build exited ${img_rc}"
+    return "$img_rc"
+  fi
   if [[ "$QUIET" != "true" ]]; then ok; fi
 
   if [[ "$QUIET" != "true" ]]; then step "build"; fi
+  # set -e is suppressed in callers guarded by `||` (build_one "$t" || FAILED=…),
+  # so a failure here must be propagated explicitly or it prints "ok" and
+  # returns 0 — the gate goes green on a failed build.
+  local rc=0
   if [[ "$QUIET" == "true" ]]; then
     "$engine" run --rm \
       -v "$ROOT:/src:Z" \
       -e KHIPRO_DIST=/src/dist \
       -e KHIPRO_NO_SYNC="${KHIPRO_NO_SYNC:-}" \
       -e KHIPRO_PLAIN=1 \
-      "khipro-build-$target" >/dev/null
+      "khipro-build-$target" >/dev/null || rc=$?
   else
     "$engine" run --rm \
       -v "$ROOT:/src:Z" \
       -e KHIPRO_DIST=/src/dist \
       -e KHIPRO_NO_SYNC="${KHIPRO_NO_SYNC:-}" \
       -e KHIPRO_PLAIN="${KHIPRO_PLAIN:-}" \
-      "khipro-build-$target"
+      "khipro-build-$target" || rc=$?
+  fi
+
+  if [[ "$rc" -ne 0 ]]; then
+    fail "build exited ${rc}"
+    return "$rc"
   fi
   if [[ "$QUIET" != "true" ]]; then ok; fi
 
@@ -103,10 +117,16 @@ run_native() {
   if [[ ! -x "$script" ]]; then
     chmod +x "$script"
   fi
+  # Same `||`-guard caveat as run_container: propagate explicitly.
+  local rc=0
   if [[ "$QUIET" == "true" ]]; then
-    KHIPRO_DIST="$DIST" "$script" >/dev/null
+    KHIPRO_DIST="$DIST" "$script" >/dev/null || rc=$?
   else
-    KHIPRO_DIST="$DIST" "$script"
+    KHIPRO_DIST="$DIST" "$script" || rc=$?
+  fi
+  if [[ "$rc" -ne 0 ]]; then
+    fail "$1 build exited ${rc}"
+    return "$rc"
   fi
 }
 
