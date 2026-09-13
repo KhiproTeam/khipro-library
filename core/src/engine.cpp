@@ -234,10 +234,34 @@ std::string Engine::run_conversion(const std::string& input) const {
 
   apply_entry(current_state);
 
+  // m17n blinder escape: a doubled blinder key ("??" or "\\\\") collapses to
+  // one literal output and composition continues in the current state — the
+  // same shape as the ("\\\\" "\\") entry the layouts carry in their biram
+  // map, generalized so every blinder key escapes, not just backslash.
+  const auto blinder_it = spec_.maps.find("blinder");
+  const bool has_blinder = blinder_it != spec_.maps.end();
+
   while (i < input.size()) {
     auto state_it = spec_.states.find(current_state);
     if (state_it == spec_.states.end()) {
       break;
+    }
+
+    if (has_blinder) {
+      bool escaped = false;
+      for (const auto& entry : blinder_it->second) {
+        const std::string doubled = entry.key + entry.key;
+        if (input.compare(i, doubled.size(), doubled) == 0) {
+          execute_actions(entry.actions, &out, &cursor, &vars, &current_state);
+          cursor = std::min(cursor, out.size());
+          i += doubled.size();
+          escaped = true;
+          break;
+        }
+      }
+      if (escaped) {
+        continue;
+      }
     }
 
     const Match match = find_match(state_it->second, input, i);
