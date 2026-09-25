@@ -61,8 +61,10 @@ install_name_tool -id @rpath/libkhipro.dylib "$OUT/lib/libkhipro.dylib"
 stage_c_sdk "$OUT"
 # The deployment target is the point of the flag above, so verify it actually
 # reached the objects instead of trusting cmake to have honoured it.
-got="$(otool -l "$OUT/lib/libkhipro.a" | awk '/minos/ {print $2}' | sort -u | tr '\n' ' ')"
-[[ "$got" == "$MACOS_MIN " ]] || die "deployment target is '${got% }', expected '$MACOS_MIN'"
+for f in libkhipro.a libkhipro.dylib; do
+  got="$(otool -arch all -l "$OUT/lib/$f" | awk '/minos/ {print $2}' | sort -u | tr '\n' ' ')"
+  [[ "$got" == "$MACOS_MIN " ]] || die "$f deployment target is '${got% }', expected '$MACOS_MIN'"
+done
 ok "$OUT"
 
 finish
