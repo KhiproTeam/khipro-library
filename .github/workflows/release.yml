@@ -231,6 +231,12 @@ jobs:
           # commits, which is the right behavior for an initial release.
           prev_tag="$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo '')"
           args=(--title "$TAG" --generate-notes)
+          # Beta tags are pre-releases: keep them off the "Latest" slot so
+          # downstream consumers (e.g. khipro-windows-portable update-lib)
+          # don't ship them as stable.
+          case "$TAG" in
+            *-beta*) args+=(--prerelease) ;;
+          esac
           if [[ -n "$prev_tag" ]]; then
             args+=(--notes-start-tag "$prev_tag")
           fi
