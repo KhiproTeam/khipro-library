@@ -8,7 +8,13 @@ foreach(line ${_meta_lines})
   endif()
 endforeach()
 
-project(${_meta_name} VERSION ${_meta_layout_version} LANGUAGES CXX C)
+# project(VERSION) only accepts strictly numeric dotted versions, while
+# layout_version may carry a prerelease suffix (e.g. "36.6.1-beta" from
+# upstream tags like v36.6.1-beta). Strip the suffix for project() only;
+# the full string stays in KHIPRO_LAYOUT_VERSION below.
+string(REGEX REPLACE "-.*$" "" _meta_project_version "${_meta_layout_version}")
+
+project(${_meta_name} VERSION ${_meta_project_version} LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

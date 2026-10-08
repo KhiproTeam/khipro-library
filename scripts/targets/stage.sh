@@ -7,7 +7,28 @@ source "$(dirname "${BASH_SOURCE[0]}")/../resources/meta.sh"
 stage_c_sdk() {
   local dest="$1"
   mkdir -p "$dest/include/khipro"
-  cp "$ROOT/core/include/khipro/khipro.h" "$dest/include/khipro/"
+
+  # Stamp version macros into the distributed header. The source header stays
+  # build-agnostic (the library itself receives these as compile definitions);
+  # SDK consumers get the released values inline, with #ifndef guards so they
+  # can still override. Same stage-time stamping as the wasm package.json.
+  local layout_version library_version
+  layout_version="$(meta_get layout_version)"
+  library_version="$(meta_library_version)"
+  awk -v layout="$layout_version" -v libver="$library_version" '
+    { print }
+    /^#define KHIPRO_H$/ && !stamped {
+      print ""
+      print "/* Version macros - stamped by the khipro-library build from khipro.meta. */"
+      print "#ifndef KHIPRO_LAYOUT_VERSION"
+      print "#define KHIPRO_LAYOUT_VERSION \"" layout "\""
+      print "#endif"
+      print "#ifndef KHIPRO_LIBRARY_VERSION"
+      print "#define KHIPRO_LIBRARY_VERSION \"" libver "\""
+      print "#endif"
+      stamped=1
+    }
+  ' "$ROOT/core/include/khipro/khipro.h" >"$dest/include/khipro/khipro.h"
 }
 
 stage_android_sdk() {
