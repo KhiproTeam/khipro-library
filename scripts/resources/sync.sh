@@ -66,20 +66,26 @@ tag_to_version() {
   echo "${1#v}"
 }
 
-is_stable_tag() {
+is_sync_tag() {
   local tag="${1#refs/tags/}"
-  tag="${tag#v}"
-  [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+  # Release scheme in both m17n repos: vX.Y.Z (stable) and vX.Y.Z-beta
+  # (pre-release), e.g. v36.6.0 and v36.6.1-beta. Everything else —
+  # including the dark-theme variant `dark-3_v1.0.0` and junk tags like
+  # `main-release` or `32.0.1` — must never be picked up by the sync.
+  [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9.]+)?$ ]] || return 1
+  case "$tag" in
+    *[Dd][Aa][Rr][Kk]*) return 1 ;;
+  esac
 }
 
-fetch_remote_stable_tags() {
+fetch_remote_sync_tags() {
   local repo="$1"
   git ls-remote --tags --sort=-v:refname "https://github.com/${repo}.git" 2>/dev/null \
     | awk '{print $2}' \
     | sed 's|refs/tags/||' \
     | grep -v '\^{}$' \
     | while read -r tag; do
-        if is_stable_tag "$tag"; then
+        if is_sync_tag "$tag"; then
           echo "$tag"
         fi
       done
@@ -106,18 +112,25 @@ download_mim() {
 }
 
 find_newest_common_tag() {
-  local default_tags touch_tags
-  default_tags="$(fetch_remote_stable_tags "$MIM_DEFAULT_REPO")"
-  touch_tags="$(fetch_remote_stable_tags "$MIM_TOUCHSCREEN_REPO")"
+  local default_tags touch_tags tag
+  default_tags="$(fetch_remote_sync_tags "$MIM_DEFAULT_REPO")"
+  touch_tags="$(fetch_remote_sync_tags "$MIM_TOUCHSCREEN_REPO")"
 
   if [[ -z "$default_tags" || -z "$touch_tags" ]]; then
     return 1
   fi
 
-  comm -12 \
-    <(printf '%s\n' "$default_tags" | sort -V) \
-    <(printf '%s\n' "$touch_tags" | sort -V) \
-    | tail -1
+  # Walk both repos' tags from newest to oldest via sort -V (which orders
+  # prereleases like 36.6.1-beta above their stable base) and return the
+  # first tag present in both repos. Grep-based membership is immune to
+  # the comm(1)/sort -V collation mismatch.
+  while read -r tag; do
+    if printf '%s\n' "$touch_tags" | grep -qx "$tag"; then
+      echo "$tag"
+      return 0
+    fi
+  done < <(printf '%s\n' "$default_tags" | sort -V -r)
+  return 1
 }
 
 CURRENT_VERSION="$(meta_get layout_version)"
@@ -135,14 +148,14 @@ fi
 
 NEWEST_TAG="$(find_newest_common_tag || true)"
 if [[ -z "$NEWEST_TAG" ]]; then
-  log "could not resolve common stable tag; using pinned version ${CURRENT_VERSION}"
+  log "could not resolve common tag; using pinned version ${CURRENT_VERSION}"
   exit 0
 fi
 
 NEW_VERSION="$(tag_to_version "$NEWEST_TAG")"
 
 if ! version_gt "$NEW_VERSION" "$CURRENT_VERSION"; then
-  log "up to date (${CURRENT_VERSION}); remote latest common stable is ${NEW_VERSION}"
+  log "up to date (${CURRENT_VERSION}); remote latest common tag is ${NEW_VERSION}"
   exit 0
 fi
 

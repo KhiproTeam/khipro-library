@@ -5,9 +5,11 @@ name: Release
 #
 # Two paths lead to a release:
 #
-#   a. Upstream m17n publishes a new stable tag that is common to BOTH
-#      rank-coder/khipro-m17n AND KhiproTeam/khipro-mim-touchscreen.
-#      sync.sh detects this, bumps layout_version, resets library_patch=0.
+#   a. Upstream m17n publishes a new tag (stable vX.Y.Z or pre-release
+#      vX.Y.Z-beta) that is common to BOTH rank-coder/khipro-m17n AND
+#      KhiproTeam/khipro-mim-touchscreen. The dark-theme variant
+#      (dark-3_v1.0.0) is never picked up. sync.sh detects this, bumps
+#      layout_version, resets library_patch=0.
 #
 #   b. A developer manually edits khipro.meta (typically bumping
 #      library_patch for a library-only fix) and pushes to main. Triggering
@@ -63,7 +65,7 @@ jobs:
       # khipro-testcases TSVs from their repos @ main, AND regenerates
       # core/src/embedded_specs.h (gitignored — never committed).
       #
-      # If m17n repos have no new common stable tag, sync exits 0 with no
+      # If m17n repos have no new common tag, sync exits 0 with no
       # changes to khipro.meta — but the testcase TSVs may still update
       # independently from their main branches.
       # -------------------------------------------------------------------
