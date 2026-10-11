@@ -48,6 +48,32 @@ sync_resources() {
   fi
 }
 
+# Compile the layout-spec generator natively and run it once. Runs on the
+# build host (inside the container for cross targets) before CMake; the
+# output is deterministic, so reruns are idempotent.
+generate_spec_tables() {
+  step "codegen"
+  local bin="$ROOT/build/host/codegen"
+  mkdir -p "$(dirname "$bin")"
+  if ! ${CXX:-g++} -std=c++17 -O2 -I "$ROOT/tools/codegen" \
+      "$ROOT/tools/codegen/main.cpp" "$ROOT/tools/codegen/emit.cpp" \
+      "$ROOT/tools/codegen/sexpr.cpp" "$ROOT/tools/codegen/spec.cpp" \
+      -o "$bin" >/tmp/khipro-codegen-build.log 2>&1; then
+    fail "see /tmp/khipro-codegen-build.log"
+    return 1
+  fi
+  if ! "$bin" \
+      --meta "$ROOT/khipro.meta" \
+      --layouts classic:"$ROOT/resources/bn-khipro.mim" \
+      --layouts classic_touch:"$ROOT/resources/bn-khipro-touchscreen.mim" \
+      --out-h "$ROOT/core/src/spec_generated.h" \
+      --out-cpp "$ROOT/core/src/spec_generated.cpp" >/tmp/khipro-codegen.log 2>&1; then
+    fail "see /tmp/khipro-codegen.log"
+    return 1
+  fi
+  ok
+}
+
 section() {
   if [[ -n "$C_BLUE" ]]; then
     printf '\n  %s· %s · %s%s\n' "$C_BLUE" "$1" "${2:-}" "$C_RESET"

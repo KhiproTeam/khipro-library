@@ -12,6 +12,7 @@ JOBS="$(nproc 2>/dev/null || echo 4)"
 section "khipro" "linux · $ARCH"
 
 sync_resources
+generate_spec_tables
 
 step "configure"
 rm -rf "$BUILD"
