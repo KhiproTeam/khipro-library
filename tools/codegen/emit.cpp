@@ -47,6 +47,12 @@ std::string emit_action(const Action& action) {
       return "act_delete(" + std::to_string(action.n) + ")";
     case ActionType::Move:
       return action.flag ? "act_move_end()" : "act_move(" + std::to_string(action.n) + ")";
+    case ActionType::Mark:
+      return "act_mark(" + quoted(action.s1) + ")";
+    case ActionType::MoveToMark:
+      return "act_move_to_mark(" + quoted(action.s1) + ")";
+    case ActionType::DeleteMark:
+      return "act_delete_mark(" + quoted(action.s1) + ")";
     case ActionType::Shift:
       return "act_shift(" + quoted(action.s1) + ")";
     case ActionType::Commit:
@@ -84,6 +90,8 @@ std::string emit_condition(const Condition& cond) {
       return "cond_always()";
     case ConditionType::Equals:
       return "cond_eq(" + quoted(cond.variable) + ", " + std::to_string(cond.value) + ")";
+    case ConditionType::GreaterThan:
+      return "cond_gt(" + quoted(cond.variable) + ", " + std::to_string(cond.value) + ")";
     case ConditionType::And:
       return "cond_and(" + emit_condition(*cond.left) + ", " + emit_condition(*cond.right) + ")";
     case ConditionType::Or:
@@ -174,6 +182,27 @@ Action act_move_end() {
   return a;
 }
 
+Action act_mark(std::string name) {
+  Action a;
+  a.type = ActionType::Mark;
+  a.s1 = std::move(name);
+  return a;
+}
+
+Action act_move_to_mark(std::string name) {
+  Action a;
+  a.type = ActionType::MoveToMark;
+  a.s1 = std::move(name);
+  return a;
+}
+
+Action act_delete_mark(std::string name) {
+  Action a;
+  a.type = ActionType::DeleteMark;
+  a.s1 = std::move(name);
+  return a;
+}
+
 Action act_shift(std::string state) {
   Action a;
   a.type = ActionType::Shift;
@@ -201,6 +230,14 @@ Condition cond_always() { return Condition{}; }
 Condition cond_eq(std::string variable, int value) {
   Condition c;
   c.type = ConditionType::Equals;
+  c.variable = std::move(variable);
+  c.value = value;
+  return c;
+}
+
+Condition cond_gt(std::string variable, int value) {
+  Condition c;
+  c.type = ConditionType::GreaterThan;
   c.variable = std::move(variable);
   c.value = value;
   return c;

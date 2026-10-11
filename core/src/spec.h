@@ -8,7 +8,7 @@
 
 namespace khipro::internal {
 
-enum class ConditionType { Always, Equals, And, Or };
+enum class ConditionType { Always, Equals, GreaterThan, And, Or };
 
 struct Condition {
   ConditionType type = ConditionType::Always;
@@ -23,6 +23,9 @@ enum class ActionType {
   Insert,
   Delete,
   Move,
+  Mark,
+  MoveToMark,
+  DeleteMark,
   Shift,
   Commit,
   CondBranch,

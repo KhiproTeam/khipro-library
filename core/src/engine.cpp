@@ -6,6 +6,39 @@
 
 namespace khipro::internal {
 
+namespace {
+
+// Marks behave like editor bookmarks: text inserted before a mark shifts it
+// right; text deleted under a mark clamps it to the region start.
+void shift_marks_insert(std::unordered_map<std::string, std::size_t>* marks, std::size_t pos,
+                        std::size_t len) {
+  if (len == 0) {
+    return;
+  }
+  for (auto& [name, at] : *marks) {
+    if (at > pos) {
+      at += len;
+    }
+  }
+}
+
+void shift_marks_delete(std::unordered_map<std::string, std::size_t>* marks, std::size_t start,
+                        std::size_t end) {
+  if (start >= end) {
+    return;
+  }
+  const std::size_t len = end - start;
+  for (auto& [name, at] : *marks) {
+    if (at >= end) {
+      at -= len;
+    } else if (at > start) {
+      at = start;
+    }
+  }
+}
+
+}  // namespace
+
 Engine::Engine(Spec spec) : spec_(std::move(spec)) { reset(); }
 
 void Engine::reset() {
@@ -105,6 +138,10 @@ bool Engine::eval_cond(const Condition& cond, const Vars& vars) const {
       auto it = vars.find(cond.variable);
       return (it != vars.end() ? it->second : 0) == cond.value;
     }
+    case ConditionType::GreaterThan: {
+      auto it = vars.find(cond.variable);
+      return (it != vars.end() ? it->second : 0) > cond.value;
+    }
     case ConditionType::And:
       return cond.left && cond.right && eval_cond(*cond.left, vars) && eval_cond(*cond.right, vars);
     case ConditionType::Or:
@@ -114,7 +151,7 @@ bool Engine::eval_cond(const Condition& cond, const Vars& vars) const {
 }
 
 void Engine::execute_actions(const std::vector<Action>& actions, std::u32string* out, std::size_t* cursor,
-                             Vars* vars, std::string* state_name) const {
+                             Vars* vars, Marks* marks, std::string* state_name) const {
   for (const auto& action : actions) {
     switch (action.type) {
       case ActionType::Set: {
@@ -134,7 +171,9 @@ void Engine::execute_actions(const std::vector<Action>& actions, std::u32string*
       }
       case ActionType::Insert: {
         const std::u32string text = utf8_to_u32(action.s1);
-        out->insert(out->begin() + static_cast<std::ptrdiff_t>(*cursor), text.begin(), text.end());
+        const std::size_t pos = *cursor;
+        out->insert(out->begin() + static_cast<std::ptrdiff_t>(pos), text.begin(), text.end());
+        shift_marks_insert(marks, pos, text.size());
         *cursor += text.size();
         break;
       }
@@ -148,6 +187,7 @@ void Engine::execute_actions(const std::vector<Action>& actions, std::u32string*
           const std::size_t end = std::min(*cursor, out->size());
           out->erase(out->begin() + static_cast<std::ptrdiff_t>(start),
                      out->begin() + static_cast<std::ptrdiff_t>(end));
+          shift_marks_delete(marks, start, end);
           *cursor = start;
         }
         break;
@@ -161,11 +201,34 @@ void Engine::execute_actions(const std::vector<Action>& actions, std::u32string*
         }
         break;
       }
+      case ActionType::Mark:
+        (*marks)[action.s1] = *cursor;
+        break;
+      case ActionType::MoveToMark: {
+        auto it = marks->find(action.s1);
+        *cursor = std::min(it != marks->end() ? it->second : 0, out->size());
+        break;
+      }
+      case ActionType::DeleteMark: {
+        auto it = marks->find(action.s1);
+        if (it == marks->end()) {
+          break;
+        }
+        const std::size_t start = std::min(it->second, *cursor);
+        const std::size_t end = std::max(it->second, *cursor);
+        if (start < end) {
+          out->erase(out->begin() + static_cast<std::ptrdiff_t>(start),
+                     out->begin() + static_cast<std::ptrdiff_t>(end));
+          shift_marks_delete(marks, start, end);
+          *cursor = start;
+        }
+        break;
+      }
       case ActionType::Shift: {
         *state_name = action.s1;
         auto state_it = spec_.states.find(*state_name);
         if (state_it != spec_.states.end()) {
-          execute_actions(state_it->second.entry_actions, out, cursor, vars, state_name);
+          execute_actions(state_it->second.entry_actions, out, cursor, vars, marks, state_name);
         }
         break;
       }
@@ -182,7 +245,7 @@ void Engine::execute_actions(const std::vector<Action>& actions, std::u32string*
       case ActionType::CondBranch: {
         for (const auto& branch : action.branches) {
           if (eval_cond(branch.condition, *vars)) {
-            execute_actions(branch.actions, out, cursor, vars, state_name);
+            execute_actions(branch.actions, out, cursor, vars, marks, state_name);
             break;
           }
         }
@@ -220,6 +283,7 @@ Engine::Match Engine::find_match(const StateDef& state, const std::string& input
 std::string Engine::run_conversion(const std::string& input) const {
   std::string current_state = "init";
   Vars vars;
+  Marks marks;
   std::u32string out;
   std::size_t cursor = 0;
   std::size_t i = 0;
@@ -229,7 +293,7 @@ std::string Engine::run_conversion(const std::string& input) const {
     if (state_it == spec_.states.end()) {
       return;
     }
-    execute_actions(state_it->second.entry_actions, &out, &cursor, &vars, &current_state);
+    execute_actions(state_it->second.entry_actions, &out, &cursor, &vars, &marks, &current_state);
   };
 
   apply_entry(current_state);
@@ -250,6 +314,7 @@ std::string Engine::run_conversion(const std::string& input) const {
       const std::u32string cp = utf8_to_u32(input.substr(i, len));
       if (!cp.empty()) {
         out.insert(out.begin() + static_cast<std::ptrdiff_t>(cursor), cp[0]);
+        shift_marks_insert(&marks, cursor, 1);
         ++cursor;
       }
       i += len;
@@ -260,8 +325,8 @@ std::string Engine::run_conversion(const std::string& input) const {
       continue;
     }
 
-    execute_actions(match.entry->actions, &out, &cursor, &vars, &current_state);
-    execute_actions(match.rule->actions, &out, &cursor, &vars, &current_state);
+    execute_actions(match.entry->actions, &out, &cursor, &vars, &marks, &current_state);
+    execute_actions(match.rule->actions, &out, &cursor, &vars, &marks, &current_state);
     cursor = std::min(cursor, out.size());
     i += match.entry->key.size();
   }
