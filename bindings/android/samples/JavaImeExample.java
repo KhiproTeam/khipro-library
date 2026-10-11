@@ -9,7 +9,7 @@ public final class JavaImeExample extends InputMethodService {
 
     @Override
     public void onStartInput(EditorInfo info, boolean restarting) {
-        khipro = new KhiproIme(getCurrentInputConnection(), KhiproVariant.TOUCHSCREEN);
+        khipro = new KhiproIme(getCurrentInputConnection(), KhiproVariant.CLASSIC_TOUCH);
     }
 
     @Override

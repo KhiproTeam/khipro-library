@@ -1,6 +1,7 @@
 # Khipro library metadata — single source of truth.
-# Hand-edited for identity fields.
-# layout_version and library_patch are managed by scripts/resources/sync.sh.
+# library_version is this library's own release line; the four layout
+# versions are independent and stamped by tools/codegen into
+# spec_generated.h.
 
 # Package identity
 name=khipro
@@ -9,6 +10,9 @@ homepage=https://github.com/khiproteam/library
 license=MIT
 author=KhiproTeam
 
-# Versioning — library_version = "${layout_version}-${library_patch}"
-layout_version=36.6.1-beta
-library_patch=0
+# Versions (independent)
+library_version=0.3.0
+khipro_classic_version=37.0.0
+khipro_touchscreen_classic_version=36.6.0
+khipro_dark_version=1.0.0
+khipro_touchscreen_dark_version=1.0.0

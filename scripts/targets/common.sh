@@ -64,8 +64,10 @@ generate_spec_tables() {
   fi
   if ! "$bin" \
       --meta "$ROOT/khipro.meta" \
-      --layouts classic:"$ROOT/resources/bn-khipro.mim" \
-      --layouts classic_touch:"$ROOT/resources/bn-khipro-touchscreen.mim" \
+      --layouts classic:"$ROOT/resources/bn-khipro-classic.mim" \
+      --layouts classic_touch:"$ROOT/resources/bn-khipro-classic-touchscreen.mim" \
+      --layouts dark:"$ROOT/resources/bn-khipro-dark.mim" \
+      --layouts dark_touch:"$ROOT/resources/bn-khipro-dark-touchscreen.mim" \
       --out-h "$ROOT/core/src/spec_generated.h" \
       --out-cpp "$ROOT/core/src/spec_generated.cpp" >/tmp/khipro-codegen.log 2>&1; then
     fail "see /tmp/khipro-codegen.log"

@@ -9,10 +9,10 @@ foreach(line ${_meta_lines})
 endforeach()
 
 # project(VERSION) only accepts strictly numeric dotted versions, while
-# layout_version may carry a prerelease suffix (e.g. "36.6.1-beta" from
-# upstream tags like v36.6.1-beta). Strip the suffix for project() only;
-# the full string stays in KHIPRO_LAYOUT_VERSION below.
-string(REGEX REPLACE "-.*$" "" _meta_project_version "${_meta_layout_version}")
+# khipro_classic_version may carry a prerelease suffix. Strip the suffix for
+# project() only; the full strings stay in the KHIPRO_*_VERSION variables
+# below.
+string(REGEX REPLACE "-.*$" "" _meta_project_version "${_meta_khipro_classic_version}")
 
 project(${_meta_name} VERSION ${_meta_project_version} LANGUAGES CXX C)
 
@@ -26,12 +26,11 @@ set(KHIPRO_DESCRIPTION     ${_meta_description})
 set(KHIPRO_HOMEPAGE        ${_meta_homepage})
 set(KHIPRO_LICENSE         ${_meta_license})
 set(KHIPRO_AUTHOR          ${_meta_author})
-set(KHIPRO_LAYOUT_VERSION  ${_meta_layout_version})
-set(KHIPRO_LIBRARY_PATCH   ${_meta_library_patch})
-set(KHIPRO_LIBRARY_VERSION "${KHIPRO_LAYOUT_VERSION}-${KHIPRO_LIBRARY_PATCH}")
+set(KHIPRO_LIBRARY_VERSION ${_meta_library_version})
+set(KHIPRO_CLASSIC_VERSION ${_meta_khipro_classic_version})
 
-message(STATUS "Khipro layout version: ${KHIPRO_LAYOUT_VERSION}")
 message(STATUS "Khipro library version: ${KHIPRO_LIBRARY_VERSION}")
+message(STATUS "Khipro classic layout version: ${KHIPRO_CLASSIC_VERSION}")
 
 option(KHIPRO_BUILD_SHARED "Build shared library" ON)
 option(KHIPRO_BUILD_STATIC "Build static library" ON)

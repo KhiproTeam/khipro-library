@@ -16,13 +16,24 @@ using khipro::internal::Spec;
 using khipro::internal::classic_spec;
 using khipro::internal::classic_touch_spec;
 using khipro::internal::convert_spec;
+using khipro::internal::dark_spec;
+using khipro::internal::dark_touch_spec;
 
 const Spec& cached_spec(khipro_variant variant) {
   switch (variant) {
-    case KHIPRO_VARIANT_TOUCHSCREEN: {
+    case KHIPRO_VARIANT_CLASSIC_TOUCH: {
       static const Spec& spec = classic_touch_spec();
       return spec;
     }
+    case KHIPRO_VARIANT_DARK: {
+      static const Spec& spec = dark_spec();
+      return spec;
+    }
+    case KHIPRO_VARIANT_DARK_TOUCH: {
+      static const Spec& spec = dark_touch_spec();
+      return spec;
+    }
+    case KHIPRO_VARIANT_CLASSIC:
     default: {
       static const Spec& spec = classic_spec();
       return spec;
@@ -128,7 +139,7 @@ int khipro_convert(khipro_variant variant, const char* ascii, char* out, int out
   }
 }
 
-const char* khipro_version(void) { return KHIPRO_LAYOUT_VERSION; }
+const char* khipro_version(void) { return KHIPRO_CLASSIC_VERSION; }
 
 const char* khipro_library_version(void) { return KHIPRO_LIBRARY_VERSION; }
 

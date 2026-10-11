@@ -13,11 +13,11 @@ struct LayoutInput {
   const khipro::internal::Spec* spec = nullptr;
 };
 
-// Writes the spec_generated.h/.cpp pair. Output is deterministic: the same
-// inputs always produce the same bytes.
+// Writes the spec_generated.h/.cpp pair. `versions` carries
+// {library_version, classic, touchscreen_classic, dark, touchscreen_dark}.
+// Output is deterministic: the same inputs always produce the same bytes.
 void emit_spec_sources(const std::vector<LayoutInput>& layouts,
-                       const std::string& layout_version,
-                       const std::string& library_version, std::string* out_h,
+                       const std::vector<std::string>& versions, std::string* out_h,
                        std::string* out_cpp);
 
 }

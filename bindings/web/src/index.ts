@@ -1,4 +1,4 @@
-export type KhiproVariant = 'default' | 'touchscreen';
+export type KhiproVariant = 'classic' | 'classic_touch' | 'dark' | 'dark_touch';
 
 export interface KhiproResult {
   committedDelta: string;
@@ -32,8 +32,15 @@ export interface KhiproModule {
 
 export type CreateKhiproModule = (config?: Record<string, unknown>) => Promise<KhiproModule>;
 
+const VARIANT_TO_INT: Record<KhiproVariant, number> = {
+  classic: 0,
+  classic_touch: 1,
+  dark: 2,
+  dark_touch: 3,
+};
+
 function variantToInt(variant: KhiproVariant): number {
-  return variant === 'touchscreen' ? 1 : 0;
+  return VARIANT_TO_INT[variant];
 }
 
 function readLastResult(mod: KhiproModule, handle: number, consumed: number): KhiproResult {
@@ -61,7 +68,7 @@ export class KhiproEngine {
 
   static async create(
     createModule: CreateKhiproModule,
-    variant: KhiproVariant = 'default',
+    variant: KhiproVariant = 'classic',
   ): Promise<KhiproEngine> {
     const mod = await createModule();
     const handle = mod._khipro_create(variantToInt(variant));
@@ -119,7 +126,7 @@ export const Khipro = {
 export async function khiproConvert(
   createModule: CreateKhiproModule,
   ascii: string,
-  variant: KhiproVariant = 'default',
+  variant: KhiproVariant = 'classic',
 ): Promise<string> {
   const mod = await createModule();
   const inPtr = mod._malloc(mod.lengthBytesUTF8(ascii) + 1);

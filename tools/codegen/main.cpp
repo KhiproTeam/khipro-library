@@ -90,14 +90,23 @@ int main(int argc, char** argv) {
   }
 
   const auto meta = read_meta(meta_path);
-  const auto layout_version = meta.find("layout_version");
-  const auto library_patch = meta.find("library_patch");
-  if (layout_version == meta.end() || library_patch == meta.end()) {
-    std::cerr << "codegen: khipro.meta missing layout_version/library_patch\n";
-    return 1;
+  const std::vector<std::string> version_keys = {
+      "library_version",
+      "khipro_classic_version",
+      "khipro_touchscreen_classic_version",
+      "khipro_dark_version",
+      "khipro_touchscreen_dark_version",
+  };
+  std::vector<std::string> versions;
+  for (const auto& key : version_keys) {
+    auto it = meta.find(key);
+    if (it == meta.end()) {
+      std::cerr << "codegen: khipro.meta missing " << key << "\n";
+      return 1;
+    }
+    versions.push_back(it->second);
   }
-  const std::string library_version =
-      layout_version->second + "-" + library_patch->second;
+  const std::string& library_version = versions[0];
 
   std::vector<khipro::codegen::LayoutInput> layouts;
   std::vector<khipro::internal::Spec> storage;
@@ -114,8 +123,7 @@ int main(int argc, char** argv) {
 
   std::string header;
   std::string source;
-  khipro::codegen::emit_spec_sources(layouts, layout_version->second,
-                                     library_version, &header, &source);
+  khipro::codegen::emit_spec_sources(layouts, versions, &header, &source);
 
   const auto write = [](const std::string& path, const std::string& text) {
     std::ofstream file(path, std::ios::binary);
@@ -129,7 +137,6 @@ int main(int argc, char** argv) {
   write(out_cpp, source);
 
   std::cout << "codegen: wrote " << out_h << " and " << out_cpp << " ("
-            << layouts.size() << " layouts, layout " << layout_version->second
-            << ", library " << library_version << ")\n";
+            << layouts.size() << " layouts, library " << library_version << ")\n";
   return 0;
 }

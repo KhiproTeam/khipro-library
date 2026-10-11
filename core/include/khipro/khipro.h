@@ -22,8 +22,10 @@ extern "C" {
 #endif
 
 typedef enum {
-  KHIPRO_VARIANT_DEFAULT = 0,
-  KHIPRO_VARIANT_TOUCHSCREEN = 1
+  KHIPRO_VARIANT_CLASSIC = 0,
+  KHIPRO_VARIANT_CLASSIC_TOUCH = 1,
+  KHIPRO_VARIANT_DARK = 2,
+  KHIPRO_VARIANT_DARK_TOUCH = 3
 } khipro_variant;
 
 typedef struct khipro_engine khipro_engine;

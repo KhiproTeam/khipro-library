@@ -73,9 +73,8 @@ build_aar() {
     return 1
   fi
 
-  local version patch
-  version="$(meta_get layout_version)"
-  patch="$(meta_get library_patch)"
+  local version
+  version="$(meta_get library_version)"
 
   local gradle_flags=(
     "--no-daemon"
@@ -101,7 +100,7 @@ build_aar() {
     return 1
   fi
 
-  local dest="$DIST/android/khipro-${version}-${patch}.aar"
+  local dest="$DIST/android/khipro-${version}.aar"
   cp "$aar" "$dest"
   ok "$(basename "$dest")"
 }

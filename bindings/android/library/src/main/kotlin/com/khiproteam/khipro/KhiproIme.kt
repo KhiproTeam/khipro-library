@@ -9,7 +9,7 @@ class KhiproIme : AutoCloseable {
     @JvmOverloads
     constructor(
         inputConnection: InputConnection?,
-        variant: KhiproVariant = KhiproVariant.DEFAULT,
+        variant: KhiproVariant = KhiproVariant.CLASSIC,
     ) {
         this.inputConnection = inputConnection
         this.engine = KhiproEngine.create(variant)

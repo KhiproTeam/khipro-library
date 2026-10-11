@@ -1,6 +1,8 @@
 package com.khiproteam.khipro
 
 enum class KhiproVariant(val nativeValue: Int) {
-    DEFAULT(0),
-    TOUCHSCREEN(1);
+    CLASSIC(0),
+    CLASSIC_TOUCH(1),
+    DARK(2),
+    DARK_TOUCH(3);
 }

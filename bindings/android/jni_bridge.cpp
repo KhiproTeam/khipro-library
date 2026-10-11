@@ -23,7 +23,16 @@ jstring utf8_to_jstring(JNIEnv* env, const char* value) {
 }
 
 khipro_variant to_variant(jint variant) {
-  return variant == 1 ? KHIPRO_VARIANT_TOUCHSCREEN : KHIPRO_VARIANT_DEFAULT;
+  switch (variant) {
+    case 1:
+      return KHIPRO_VARIANT_CLASSIC_TOUCH;
+    case 2:
+      return KHIPRO_VARIANT_DARK;
+    case 3:
+      return KHIPRO_VARIANT_DARK_TOUCH;
+    default:
+      return KHIPRO_VARIANT_CLASSIC;
+  }
 }
 
 jobject make_result(JNIEnv* env, const khipro_result& result) {

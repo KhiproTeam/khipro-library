@@ -130,14 +130,17 @@ bool run_variant(khipro_variant variant, const std::string& tsv_path) {
 }
 
 int main() {
-  const std::string default_tsv =
-      (std::string(CMAKE_SOURCE_DIR) + "/resources/khipro-testcases.tsv");
-  const std::string touch_tsv =
-      (std::string(CMAKE_SOURCE_DIR) + "/resources/khipro-testcases-touch.tsv");
+  const std::string base = std::string(CMAKE_SOURCE_DIR) + "/resources/";
+  const std::string classic_tsv = base + "khipro-testcases.tsv";
+  const std::string classic_touch_tsv = base + "khipro-testcases-touch.tsv";
+  const std::string dark_tsv = base + "khipro-testcases-dark.tsv";
+  const std::string dark_touch_tsv = base + "khipro-testcases-dark-touch.tsv";
 
   bool ok = true;
-  ok = run_variant(KHIPRO_VARIANT_DEFAULT, default_tsv) && ok;
-  ok = run_variant(KHIPRO_VARIANT_TOUCHSCREEN, touch_tsv) && ok;
+  ok = run_variant(KHIPRO_VARIANT_CLASSIC, classic_tsv) && ok;
+  ok = run_variant(KHIPRO_VARIANT_CLASSIC_TOUCH, classic_touch_tsv) && ok;
+  ok = run_variant(KHIPRO_VARIANT_DARK, dark_tsv) && ok;
+  ok = run_variant(KHIPRO_VARIANT_DARK_TOUCH, dark_touch_tsv) && ok;
 
   if (!ok) {
     return 1;

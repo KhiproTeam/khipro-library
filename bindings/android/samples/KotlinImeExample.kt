@@ -7,7 +7,7 @@ class KotlinImeExample : InputMethodService() {
     private var khipro: KhiproIme? = null
 
     override fun onStartInput(info: EditorInfo, restarting: Boolean) {
-        khipro = KhiproIme(currentInputConnection, KhiproVariant.TOUCHSCREEN)
+        khipro = KhiproIme(currentInputConnection, KhiproVariant.CLASSIC_TOUCH)
     }
 
     override fun onFinishInput() {

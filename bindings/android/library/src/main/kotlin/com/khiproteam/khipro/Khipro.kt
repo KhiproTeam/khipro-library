@@ -3,7 +3,7 @@ package com.khiproteam.khipro
 object Khipro {
     @JvmStatic
     @JvmOverloads
-    fun convert(ascii: String, variant: KhiproVariant = KhiproVariant.DEFAULT): String =
+    fun convert(ascii: String, variant: KhiproVariant = KhiproVariant.CLASSIC): String =
         KhiproNative.convert(variant.nativeValue, ascii)
 
     @JvmStatic

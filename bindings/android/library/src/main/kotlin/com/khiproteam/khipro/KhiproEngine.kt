@@ -39,7 +39,7 @@ class KhiproEngine private constructor(
     companion object {
         @JvmStatic
         @JvmOverloads
-        fun create(variant: KhiproVariant = KhiproVariant.DEFAULT): KhiproEngine {
+        fun create(variant: KhiproVariant = KhiproVariant.CLASSIC): KhiproEngine {
             val handle = KhiproNative.create(variant.nativeValue)
             require(handle != 0L) { "khipro_create failed" }
             return KhiproEngine(handle, variant)

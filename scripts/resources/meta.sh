@@ -2,7 +2,7 @@
 # Read metadata from khipro.meta. Source this file: source meta.sh
 # Usage:
 #   meta_get <key>          - print value for key, return 1 if missing
-#   meta_library_version    - print layout_version-library_patch
+#   meta_library_version    - print library_version
 
 META_FILE="${META_FILE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/khipro.meta}"
 
@@ -16,5 +16,5 @@ meta_get() {
 }
 
 meta_library_version() {
-  echo "$(meta_get layout_version)-$(meta_get library_patch)"
+  meta_get library_version
 }

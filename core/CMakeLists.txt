@@ -16,7 +16,6 @@ function(khipro_apply_target_flags target_name)
     PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/src
   )
-  target_compile_definitions(${target_name} PRIVATE KHIPRO_LAYOUT_VERSION="${KHIPRO_LAYOUT_VERSION}")
   target_compile_options(${target_name} PRIVATE
     -Os
     -ffunction-sections

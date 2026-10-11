@@ -12,19 +12,32 @@ stage_c_sdk() {
   # build-agnostic (the library itself receives these as compile definitions);
   # SDK consumers get the released values inline, with #ifndef guards so they
   # can still override. Same stage-time stamping as the wasm package.json.
-  local layout_version library_version
-  layout_version="$(meta_get layout_version)"
-  library_version="$(meta_library_version)"
-  awk -v layout="$layout_version" -v libver="$library_version" '
+  local library_version classic touchscreen dark dark_touch
+  library_version="$(meta_get library_version)"
+  classic="$(meta_get khipro_classic_version)"
+  touchscreen="$(meta_get khipro_touchscreen_classic_version)"
+  dark="$(meta_get khipro_dark_version)"
+  dark_touch="$(meta_get khipro_touchscreen_dark_version)"
+  awk -v libver="$library_version" -v classic="$classic" -v touch="$touchscreen" \
+      -v dark="$dark" -v darktouch="$dark_touch" '
     { print }
     /^#define KHIPRO_H$/ && !stamped {
       print ""
       print "/* Version macros - stamped by the khipro-library build from khipro.meta. */"
-      print "#ifndef KHIPRO_LAYOUT_VERSION"
-      print "#define KHIPRO_LAYOUT_VERSION \"" layout "\""
-      print "#endif"
       print "#ifndef KHIPRO_LIBRARY_VERSION"
       print "#define KHIPRO_LIBRARY_VERSION \"" libver "\""
+      print "#endif"
+      print "#ifndef KHIPRO_CLASSIC_VERSION"
+      print "#define KHIPRO_CLASSIC_VERSION \"" classic "\""
+      print "#endif"
+      print "#ifndef KHIPRO_TOUCHSCREEN_CLASSIC_VERSION"
+      print "#define KHIPRO_TOUCHSCREEN_CLASSIC_VERSION \"" touch "\""
+      print "#endif"
+      print "#ifndef KHIPRO_DARK_VERSION"
+      print "#define KHIPRO_DARK_VERSION \"" dark "\""
+      print "#endif"
+      print "#ifndef KHIPRO_TOUCHSCREEN_DARK_VERSION"
+      print "#define KHIPRO_TOUCHSCREEN_DARK_VERSION \"" darktouch "\""
       print "#endif"
       stamped=1
     }
@@ -56,16 +69,15 @@ stage_wasm_package() {
   cp "$ROOT/bindings/web/dist/index.js" "$out/"
   cp "$ROOT/bindings/web/dist/index.d.ts" "$out/"
 
-  local name desc version patch
+  local name desc version
   name="$(meta_get name)"
   desc="$(meta_get description)"
-  version="$(meta_get layout_version)"
-  patch="$(meta_get library_patch)"
+  version="$(meta_get library_version)"
 
   cat >"$out/package.json" <<EOF
 {
   "name": "@khiproteam/${name}",
-  "version": "${version}-${patch}",
+  "version": "${version}",
   "description": "${desc} (WebAssembly)",
   "type": "module",
   "main": "index.js",
