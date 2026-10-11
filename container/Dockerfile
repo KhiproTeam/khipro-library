@@ -18,7 +18,6 @@ RUN apt-get update \
       g++ \
       git \
       make \
-      python3 \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src

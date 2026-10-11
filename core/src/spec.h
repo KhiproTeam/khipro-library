@@ -6,8 +6,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "sexpr.h"
-
 namespace khipro::internal {
 
 enum class ConditionType { Always, Equals, And, Or };
@@ -67,7 +65,5 @@ struct Spec {
   std::unordered_map<std::string, std::vector<MapEntry>> maps;
   std::unordered_map<std::string, StateDef> states;
 };
-
-Spec parse_spec(const std::string& spec_text);
 
 }

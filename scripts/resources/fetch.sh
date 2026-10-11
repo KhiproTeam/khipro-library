@@ -32,9 +32,4 @@ TC_TOUCH_REF="$(read_lock TESTCASES_TOUCHSCREEN_REF)"
 download_testcases "$TC_DEFAULT_REPO" "$TC_DEFAULT_REF" "$RESOURCES/khipro-testcases.tsv"
 download_testcases "$TC_TOUCH_REPO" "$TC_TOUCH_REF" "$RESOURCES/khipro-testcases-touch.tsv"
 
-python3 "$ROOT/scripts/resources/embed.py" \
-  --default "$RESOURCES/bn-khipro.mim" \
-  --touchscreen "$RESOURCES/bn-khipro-touchscreen.mim" \
-  --out "$ROOT/core/src/embedded_specs.h"
-
 echo "Resources refreshed (library version $(meta_library_version))."

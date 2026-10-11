@@ -5,32 +5,29 @@
 #include <string>
 
 #include "convert.h"
-#include "embedded_specs.h"
 #include "engine.h"
 #include "spec.h"
+#include "spec_generated.h"
 
 namespace {
 
 using khipro::internal::Engine;
 using khipro::internal::Spec;
+using khipro::internal::classic_spec;
+using khipro::internal::classic_touch_spec;
 using khipro::internal::convert_spec;
-using khipro::internal::parse_spec;
-
-std::string spec_text(khipro_variant variant) {
-  if (variant == KHIPRO_VARIANT_TOUCHSCREEN) {
-    return std::string(reinterpret_cast<const char*>(khipro_spec_touchscreen),
-                       khipro_spec_touchscreen_len);
-  }
-  return std::string(reinterpret_cast<const char*>(khipro_spec_default), khipro_spec_default_len);
-}
 
 const Spec& cached_spec(khipro_variant variant) {
-  if (variant == KHIPRO_VARIANT_TOUCHSCREEN) {
-    static const Spec spec = parse_spec(spec_text(KHIPRO_VARIANT_TOUCHSCREEN));
-    return spec;
+  switch (variant) {
+    case KHIPRO_VARIANT_TOUCHSCREEN: {
+      static const Spec& spec = classic_touch_spec();
+      return spec;
+    }
+    default: {
+      static const Spec& spec = classic_spec();
+      return spec;
+    }
   }
-  static const Spec spec = parse_spec(spec_text(KHIPRO_VARIANT_DEFAULT));
-  return spec;
 }
 
 struct EngineHandle {
