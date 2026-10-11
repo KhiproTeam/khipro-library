@@ -5,23 +5,23 @@
 #   ./scripts/build.sh <target> [flags]
 #
 # Targets:
-#   linux     Linux .so + .a (+ tests)
-#   macos     macOS .dylib + .a (+ tests) — host-only, requires a Mac
-#   windows   Windows x86_64 .dll
-#   android   Android .so per ABI
-#   wasm      WebAssembly .js + .wasm
-#   all       All targets available on this host
-#   test      Linux build + conformance tests (alias for linux)
-#   sync      Pull layouts from upstream, regenerate spec tables, run tests
+#   linux     Linux .so + .a (+ tests)     — native by default; --container for containers
+#   macos     macOS .dylib + .a (+ tests)  — host-only, requires a Mac
+#   windows   Windows x86_64 .dll          — container by default; --native for host
+#   android   Android .so per ABI          — container by default; --native for host
+#   wasm      WebAssembly .js + .wasm      — container by default; --native for host
+#   all       windows android wasm (container) and linux (native)
+#   test      Build + all four conformance suites — always native; --container to use one
+#   sync      Pull layouts, regenerate spec tables, build + test — always native
 #
 # Flags (any order):
-#   --native    Build on host (skip container); requires local toolchain
+#   --native    Build on the host instead of a container
+#   --container Build in a container instead of the host
 #   --verbose   Force rich output (colors + per-step detail)
 #   --quiet     Suppress everything except errors
 #   -h, --help  Show this help
 #
 # Environment:
-#   KHIPRO_NO_SYNC=1     Skip GitHub layout-version check
 #   KHIPRO_DIST=<path>   Override dist/ output directory
 #   KHIPRO_CONTAINER=cmd Force podman/docker/etc.
 #   NO_COLOR=1           Disable ANSI colors
@@ -32,25 +32,32 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/targets/common.sh"
 
 usage() {
-  sed -n '3,22p' "$0"
+  sed -n '3,24p' "$0"
   exit "${1:-0}"
 }
 
 TARGETS=()
 USE_NATIVE=false
+USE_CONTAINER=false
 QUIET=false
 
 while (( $# )); do
   case "$1" in
-    --native)  USE_NATIVE=true ;;
-    --verbose) export KHIPRO_PLAIN="" ;;
-    --quiet)   QUIET=true ;;
-    -h|--help) usage 0 ;;
-    -*)        echo "Unknown flag: $1" >&2; usage 1 ;;
-    *)         TARGETS+=("$1") ;;
+    --native)    USE_NATIVE=true ;;
+    --container) USE_CONTAINER=true ;;
+    --verbose)   export KHIPRO_PLAIN="" ;;
+    --quiet)     QUIET=true ;;
+    -h|--help)   usage 0 ;;
+    -*)          echo "Unknown flag: $1" >&2; usage 1 ;;
+    *)           TARGETS+=("$1") ;;
   esac
   shift
 done
+
+if [[ "$USE_NATIVE" == true && "$USE_CONTAINER" == true ]]; then
+  echo "Flags --native and --container are mutually exclusive." >&2
+  usage 1
+fi
 
 if [[ ${#TARGETS[@]} -eq 0 ]]; then
   usage 0
@@ -92,14 +99,14 @@ run_container() {
     "$engine" run --rm \
       -v "$ROOT:/src:Z" \
       -e KHIPRO_DIST=/src/dist \
-      -e KHIPRO_NO_SYNC="${KHIPRO_NO_SYNC:-}" \
+      -e KHIPRO_TEST_REQUIRED="${KHIPRO_TEST_REQUIRED:-}" \
       -e KHIPRO_PLAIN=1 \
       "khipro-build-$target" >/dev/null || rc=$?
   else
     "$engine" run --rm \
       -v "$ROOT:/src:Z" \
       -e KHIPRO_DIST=/src/dist \
-      -e KHIPRO_NO_SYNC="${KHIPRO_NO_SYNC:-}" \
+      -e KHIPRO_TEST_REQUIRED="${KHIPRO_TEST_REQUIRED:-}" \
       -e KHIPRO_PLAIN="${KHIPRO_PLAIN:-}" \
       "khipro-build-$target" || rc=$?
   fi
@@ -134,33 +141,37 @@ run_native() {
 build_one() {
   local name="$1"
 
-  # macOS has no container path (no macOS containers / cross-compile from
-  # Linux), so it always builds natively on the host.
-  if [[ "$name" == "macos" ]]; then
-    run_native "macos"
-    return
-  fi
-
-  if [[ "$USE_NATIVE" == "true" ]]; then
-    case "$name" in
-      test) run_native "linux" ;;
-      linux|windows|android|wasm) run_native "$name" ;;
-      *) die "Unknown target: $name" ;;
-    esac
-    return
-  fi
-
+  # Venue per target: host-first targets (linux/macos/test) run natively and
+  # only enter a container on --container; cross targets (windows/android/
+  # wasm) build in containers and only run natively on --native. macOS has
+  # no container path at all (no macOS containers to cross from Linux).
+  local in_container=false
   case "$name" in
-    linux|windows|android|wasm)
-      run_container "$name"
+    linux|test)
+      [[ "$USE_CONTAINER" == "true" ]] && in_container=true
       ;;
-    test)
-      run_container "linux"
+    macos)
+      in_container=false
+      ;;
+    windows|android|wasm)
+      [[ "$USE_NATIVE" != "true" ]] && in_container=true
       ;;
     *)
       die "Unknown target: $name"
       ;;
   esac
+
+  if [[ "$name" == "test" ]]; then
+    # The test target maps onto the linux build with conformance mandatory.
+    export KHIPRO_TEST_REQUIRED=1
+    name="linux"
+  fi
+
+  if [[ "$in_container" == "true" ]]; then
+    run_container "$name"
+  else
+    run_native "$name"
+  fi
 }
 
 mkdir -p "$DIST"

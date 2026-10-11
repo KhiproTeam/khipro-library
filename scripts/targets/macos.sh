@@ -22,6 +22,7 @@ esac
 
 section "khipro" "macos · $ARCH"
 
+
 sync_resources
 
 step "configure"
@@ -43,6 +44,10 @@ ok
 # tests run for native single-arch builds only.
 if [[ "$ARCH" != "universal" ]]; then
   step "test"
+  if [[ ! -f "$ROOT/resources/khipro-testcases.tsv" ]]; then
+    skip "no TSVs — run ./scripts/build.sh sync"
+    return 0
+  fi
   if ctest --test-dir "$BUILD" --output-on-failure >/tmp/khipro-test.log 2>&1; then
     cases="$("$BUILD/tests/khipro_conformance" 2>&1 | awk '/^PASS/ {sum+=$2} END {print sum+0}')"
     ok "${cases:+$cases cases}"

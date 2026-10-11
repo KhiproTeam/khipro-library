@@ -11,10 +11,15 @@ JOBS="$(nproc 2>/dev/null || echo 4)"
 
 section "khipro" "linux · $ARCH"
 
-# Conformance needs the upstream TSVs, which only `make sync` pulls.
+# Conformance needs the upstream TSVs, which only `make sync` pulls. The test
+# target demands them; plain builds skip the tests instead.
+TESTS_ENABLED=true
 if [[ ! -f "$ROOT/resources/khipro-testcases.tsv" ]]; then
-  fail "conformance TSVs missing — run ./scripts/build.sh sync first"
-  exit 1
+  if [[ "${KHIPRO_TEST_REQUIRED:-0}" == "1" ]]; then
+    fail "conformance TSVs missing — run ./scripts/build.sh sync first"
+    exit 1
+  fi
+  TESTS_ENABLED=false
 fi
 
 step "configure"
@@ -31,7 +36,9 @@ cmake --build "$BUILD" -j"$JOBS" >/dev/null 2>&1
 ok
 
 step "test"
-if ctest --test-dir "$BUILD" --output-on-failure >/tmp/khipro-test.log 2>&1; then
+if [[ "$TESTS_ENABLED" != "true" ]]; then
+  skip "no TSVs — run ./scripts/build.sh sync"
+elif ctest --test-dir "$BUILD" --output-on-failure >/tmp/khipro-test.log 2>&1; then
   cases="$("$BUILD/tests/khipro_conformance" 2>&1 | awk '/^PASS/ {sum+=$2} END {print sum+0}')"
   ok "${cases:+$cases cases}"
 else

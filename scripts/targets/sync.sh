@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Developer flow: pull the four layouts from upstream and regenerate the spec
-# tables. Tests are deliberately not run here — run ./scripts/build.sh test
-# yourself and only commit the regenerated tables once every suite passes.
+# Developer flow: pull the four layouts from upstream, regenerate the spec
+# tables, then build and run every conformance suite. KHIPRO_TEST_REQUIRED
+# makes missing TSVs a hard failure — sync just pulled them. Runs natively.
 set -euo pipefail
 
 source "$(dirname "$0")/common.sh"
@@ -19,7 +19,11 @@ fi
 generate_spec_tables
 
 if [[ -n "$(git -C "$ROOT" status --porcelain -- core/src/spec_generated.cpp core/src/spec_generated.h)" ]]; then
-  printf 'sync: spec tables changed — run ./scripts/build.sh test, then commit core/src/spec_generated.{h,cpp}\n' >&2
+  printf 'sync: spec tables changed — prove them with the tests below, then commit core/src/spec_generated.{h,cpp}\n' >&2
 else
   ok "spec tables unchanged"
 fi
+
+# Build and test exactly what was just generated, natively. KHIPRO_NO_SYNC
+# keeps the linux target from re-fetching; sync.sh already refreshed everything.
+KHIPRO_NO_SYNC=1 KHIPRO_TEST_REQUIRED=1 "$ROOT/scripts/targets/linux.sh"
