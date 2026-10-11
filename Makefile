@@ -1,4 +1,4 @@
-.PHONY: all linux macos windows android wasm test clean dist
+.PHONY: all linux macos windows android wasm test sync clean dist
 
 all:
 	./scripts/build.sh all
@@ -20,6 +20,9 @@ wasm:
 
 test:
 	./scripts/build.sh test
+
+sync:
+	./scripts/build.sh sync
 
 clean:
 	rm -rf build dist build-* 

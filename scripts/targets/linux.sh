@@ -11,8 +11,11 @@ JOBS="$(nproc 2>/dev/null || echo 4)"
 
 section "khipro" "linux · $ARCH"
 
-sync_resources
-generate_spec_tables
+# Conformance needs the upstream TSVs, which only `make sync` pulls.
+if [[ ! -f "$ROOT/resources/khipro-testcases.tsv" ]]; then
+  fail "conformance TSVs missing — run ./scripts/build.sh sync first"
+  exit 1
+fi
 
 step "configure"
 rm -rf "$BUILD"

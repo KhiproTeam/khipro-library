@@ -25,5 +25,5 @@ bindings/ios/build/
 *.xcuserstate
 local.properties
 tmp/
-core/src/spec_generated.h
-core/src/spec_generated.cpp
+resources/*.mim
+resources/*.tsv

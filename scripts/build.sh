@@ -12,6 +12,7 @@
 #   wasm      WebAssembly .js + .wasm
 #   all       All targets available on this host
 #   test      Linux build + conformance tests (alias for linux)
+#   sync      Pull layouts from upstream, regenerate spec tables, run tests
 #
 # Flags (any order):
 #   --native    Build on host (skip container); requires local toolchain
@@ -171,6 +172,11 @@ fi
 FAILED=0
 for t in "${TARGETS[@]}"; do
   case "$t" in
+    sync)
+      # Host-side developer flow: fetch layouts, regenerate the spec tables,
+      # then build + test so the regenerated tables are proven before commit.
+      "$ROOT/scripts/targets/sync.sh" || FAILED=$((FAILED + 1))
+      ;;
     linux|macos|windows|android|wasm|test)
       build_one "$t" || FAILED=$((FAILED + 1))
       ;;
