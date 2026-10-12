@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
 # Layout resource sync, driven by the per-layout versions in khipro.meta.
 #
-#   sync.sh          For each layout: if its repo has a newer matching release
-#                    tag than khipro.meta records, fetch that tag's spec +
-#                    conformance TSVs and bump the recorded version.
+#   sync.sh          Stable track: pull each layout's newest STABLE release
+#                    (clsc-vX.Y.Z / drk-vX.Y.Z) and record its version.
+#   sync.sh beta     Beta track: pull each layout's newest release of ANY
+#                    kind — a -beta suffix wins when it is the newest.
 #   sync.sh pinned   Fetch exactly the versions khipro.meta records, with no
 #                    discovery. This is the release gate: the committed spec
 #                    tables must regenerate byte-identically from these inputs.
 #
-# Tag scheme: classic layouts release as clsc-vX.Y.Z, dark layouts drk-vX.Y.Z.
-# Every release pairs the .mim spec with its conformance TSV.
+# Files are ALWAYS fetched (they are tiny); the spec-table drift check after
+# regeneration decides whether anything actually changed. This is what makes
+# same-version re-releases (fixed betas re-tagged upstream) detectable.
+#
+# Tag scheme: classic layouts release as clsc-vX.Y.Z[-sfx], dark layouts as
+# drk-vX.Y.Z[-sfx]. Every release pairs the .mim spec with its conformance TSV.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -19,8 +24,8 @@ RAW="https://raw.githubusercontent.com"
 
 MODE="${1:-latest}"
 case "$MODE" in
-  latest|pinned) ;;
-  *) echo "usage: sync.sh [latest|pinned]" >&2; exit 2 ;;
+  latest|beta|pinned) ;;
+  *) echo "usage: sync.sh [latest|beta|pinned]" >&2; exit 2 ;;
 esac
 
 log() { printf 'sync: %s\n' "$*" >&2; }
@@ -41,11 +46,15 @@ fetch() { # <owner/repo> <tag> <src-path> <dest-path>
   [[ -s "$RESOURCES/$4" ]] || return 1
 }
 
-# Newest release tag of a repo under <prefix>-vX.Y.Z.
+# Newest release tag of a repo under <prefix>-vX.Y.Z. The beta mode also
+# accepts prerelease suffixes (clsc-v37.0.2-beta), so a beta newer than the
+# latest stable is picked up.
 newest_tag() {
+  local suffix=""
+  [[ "$MODE" == "beta" ]] && suffix="(-[a-z0-9.]+)?"
   git ls-remote --tags --quiet "https://github.com/$1.git" \
     | awk '{print $2}' | sed 's|refs/tags/||' | grep -v '\^{}$' \
-    | grep -E "^${2}-v[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -1
+    | grep -E "^${2}-v[0-9]+\.[0-9]+\.[0-9]+${suffix}$" | sort -V | tail -1
 }
 
 sync_one() {
@@ -67,17 +76,14 @@ sync_one() {
       log "$name: no ${prefix}-vX.Y.Z release found"
       return 0
     fi
-    remote_version="${tag#${prefix}-v}"
-    if [[ "$remote_version" == "$current" ]] \
-       && [[ -s "$RESOURCES/$mim_dest" ]] && [[ -s "$RESOURCES/$tsv_dest" ]]; then
-      log "$name: up to date ($current)"
-      return 0
-    fi
-    if [[ "$remote_version" == "$current" ]]; then
-      log "$name: version matches meta but local files are missing — fetching"
-    fi
-    if [[ "$(printf '%s\n%s\n' "$current" "$remote_version" | sort -V | tail -1)" != "$remote_version" ]]; then
-      log "$name: remote $remote_version is older than recorded $current — skipping"
+    # Files are always re-fetched even when the version matches: upstream can
+    # re-release a fixed beta under the same tag, and the post-regeneration
+    # drift check is what decides whether anything actually changed.
+    # A prerelease of the recorded base (37.0.1-beta vs 37.0.1) is newer work,
+    # not a downgrade — compare base versions only.
+    local version="${tag#${prefix}-v}"
+    if [[ "$(printf '%s\n%s\n' "${current%%-*}" "${version%%-*}" | sort -V | tail -1)" != "${version%%-*}" ]]; then
+      log "$name: remote $version is older than recorded $current — skipping"
       return 0
     fi
   fi
@@ -91,11 +97,15 @@ sync_one() {
     return 1
   fi
 
-  if [[ "$mode" == "latest" ]]; then
-    meta_set "$key" "${tag#${prefix}-v}"
-    log "$name: $current -> ${tag#${prefix}-v} ($tag)"
-  else
+  local version="${tag#${prefix}-v}"
+  if [[ "$mode" == "pinned" ]]; then
     log "$name: pinned $tag"
+  elif [[ "$version" == "$current" ]]; then
+    log "$name: $version (re-fetched; content drift, if any, shows in the table check)"
+    meta_set "$key" "$version"
+  else
+    meta_set "$key" "$version"
+    log "$name: $current -> $version ($tag)"
   fi
 }
 

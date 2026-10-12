@@ -11,8 +11,7 @@ source "$(dirname "$0")/common.sh"
 # pinned: fetch exactly the versions khipro.meta records — the release gate.
 # In pinned mode the committed spec tables MUST regenerate byte-identically,
 # otherwise the tables and their recorded inputs have drifted apart.
-MODE="${1:-latest}"
-[[ "$MODE" == "pinned" ]] && export KHIPRO_NO_SYNC=1
+MODE="${1:-latest}"  # latest | beta | pinned
 
 section "khipro" "sync · $MODE"
 

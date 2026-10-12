@@ -1,12 +1,11 @@
 name: Release
 
-# Manual release pipeline: publishes the current state of main as
-# v<library_version> from khipro.meta.
+# Publishes whatever main carries as lib-v<library_version>.
 #
-# Layouts reach this repo only through a developer's `make sync` + reviewed
-# commit of core/src/spec_generated.{h,cpp} and khipro.meta, and a
-# library_version bump when a release is due. There is nothing to
-# auto-detect — dispatch this workflow when main is ready to ship.
+# Layout updates land on main via the Layout Sync workflow (sync + tests +
+# auto-patched library_version); library releases are a manual
+# library_version bump + push. Either way, a push to main that has a
+# lib-v<library_version> tag missing gets released by this workflow.
 #
 # Pipeline:
 #   1. Re-fetch the pinned upstream inputs (the release versions recorded in
@@ -20,6 +19,8 @@ name: Release
 #      the universal macOS library.
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 # contents: write → push commits/tags, create GitHub releases
@@ -65,7 +66,7 @@ jobs:
         id: check
         run: |
           version="$(grep '^library_version=' khipro.meta | cut -d= -f2 | tr -d '[:space:]')"
-          tag="v${version}"
+          tag="lib-v${version}"
 
           if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
             echo "::notice::tag ${tag} already exists — bump library_version in khipro.meta to release again."
@@ -108,7 +109,7 @@ jobs:
         env:
           TAG: ${{ steps.check.outputs.tag }}
         run: |
-          ver="${TAG#v}"
+          ver="${TAG#lib-v}"
           mkdir -p dist-artifacts
 
           tar -czf "dist-artifacts/khipro-${ver}-linux-x86_64.tar.gz" \
@@ -158,7 +159,7 @@ jobs:
           prev_tag="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || echo '')"
           args=(--title "$TAG" --generate-notes)
           # Prerelease versions (e.g. 2.1-beta) stay off the "Latest" slot.
-          ver="${TAG#v}"
+          ver="${TAG#lib-v}"
           case "$ver" in
             *-*) args+=(--prerelease) ;;
           esac
@@ -206,7 +207,7 @@ jobs:
         env:
           TAG: ${{ needs.release.outputs.tag }}
         run: |
-          ver="${TAG#v}"
+          ver="${TAG#lib-v}"
           mkdir -p dist-artifacts
           # tar.gz preserves perms + the @rpath dylib
           tar -czf "dist-artifacts/khipro-${ver}-macos-universal.tar.gz" \

@@ -39,8 +39,8 @@ step "test"
 if [[ "$TESTS_ENABLED" != "true" ]]; then
   skip "no TSVs — run ./scripts/build.sh sync"
 elif ctest --test-dir "$BUILD" --output-on-failure >/tmp/khipro-test.log 2>&1; then
-  cases="$("$BUILD/tests/khipro_conformance" 2>&1 | awk '/^PASS/ {sum+=$2} END {print sum+0}')"
-  ok "${cases:+$cases cases}"
+  detail="$("$BUILD/tests/khipro_conformance" 2>&1 | awk '/^PASS/ {sub(/:/, "", $2); printf "%s%s %s", sep, $2, $3; sep=" · "}')"
+  ok "$detail"
 else
   fail "see /tmp/khipro-test.log"
   exit 1

@@ -82,7 +82,8 @@ std::vector<Case> load_tsv(const std::string& path) {
   return cases;
 }
 
-bool run_variant(khipro_variant variant, const std::string& tsv_path) {
+bool run_variant(khipro_variant variant, const std::string& tsv_path,
+                 const std::string& label) {
   const auto cases = load_tsv(tsv_path);
   int failed = 0;
 
@@ -123,7 +124,7 @@ bool run_variant(khipro_variant variant, const std::string& tsv_path) {
     std::cerr << failed << " failures in " << tsv_path << '\n';
     return false;
   }
-  std::cout << "PASS " << cases.size() << " cases in " << tsv_path << '\n';
+  std::cout << "PASS " << label << ": " << cases.size() << "/" << cases.size() << "\n";
   return true;
 }
 
@@ -137,10 +138,10 @@ int main() {
   const std::string dark_touch_tsv = base + "khipro-testcases-dark-touch.tsv";
 
   bool ok = true;
-  ok = run_variant(KHIPRO_VARIANT_CLASSIC, classic_tsv) && ok;
-  ok = run_variant(KHIPRO_VARIANT_CLASSIC_TOUCH, classic_touch_tsv) && ok;
-  ok = run_variant(KHIPRO_VARIANT_DARK, dark_tsv) && ok;
-  ok = run_variant(KHIPRO_VARIANT_DARK_TOUCH, dark_touch_tsv) && ok;
+  ok = run_variant(KHIPRO_VARIANT_CLASSIC, classic_tsv, "classic") && ok;
+  ok = run_variant(KHIPRO_VARIANT_CLASSIC_TOUCH, classic_touch_tsv, "classic-touch") && ok;
+  ok = run_variant(KHIPRO_VARIANT_DARK, dark_tsv, "dark") && ok;
+  ok = run_variant(KHIPRO_VARIANT_DARK_TOUCH, dark_touch_tsv, "dark-touch") && ok;
 
   if (!ok) {
     return 1;

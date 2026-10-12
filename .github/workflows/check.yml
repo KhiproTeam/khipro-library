@@ -1,0 +1,84 @@
+name: Channel Check
+
+# Daily dispatcher. Compares the per-layout versions recorded in khipro.meta
+# against the upstream repos and dispatches the track that has work:
+#
+#   - a layout's newest STABLE release is newer than meta        → sync.yml
+#   - a layout's newest release (any kind) is a NEW beta         → sync-beta.yml
+#
+# Both can dispatch the same day (e.g. classic has a new stable while dark
+# ships a beta) — the tracks are independent: main carries stables, the beta
+# branch carries betas, neither can disturb the other.
+
+on:
+  schedule:
+    - cron: '41 3 * * *'  # daily, off-minute
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: chmod +x scripts/resources/*.sh
+
+      - name: Compare meta against upstream releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          meta_get() { grep -E "^$1=" khipro.meta | head -1 | cut -d= -f2-; }
+          newest() { # <repo> <prefix> <stable|any>
+            local sfx=""
+            [[ "$3" == any ]] && sfx="(-[a-z0-9.]+)?"
+            git ls-remote --tags --quiet "https://github.com/$1.git" \
+              | awk '{print $2}' | sed 's|refs/tags/||' | grep -v '\^{}$' \
+              | grep -E "^${2}-v[0-9]+\.[0-9]+\.[0-9]+${sfx}$" | sort -V | tail -1
+          }
+
+          stable_needed=false
+          beta_needed=false
+          check() { # <key> <repo> <prefix>
+            local current newest_stable newest_any
+            current="$(meta_get "$1")"
+            newest_stable="$(newest "$2" "$3" stable)"
+            newest_any="$(newest "$2" "$3" any)"
+            echo "$1: meta=$current stable=$newest_stable any=$newest_any"
+
+            # Stable track: a stable release newer than meta's base version.
+            if [[ "$(printf '%s\n%s\n' "${current%%-*}" "${newest_stable%%-*}" | sort -V | tail -1)" == "${newest_stable%%-*}" \
+                  && "${newest_stable%%-*}" != "${current%%-*}" ]]; then
+              echo "::notice::$1 stable update available ($newest_stable)"
+              stable_needed=true
+            fi
+            # Beta track: the newest release of any kind is a beta and not
+            # already the recorded one. Stable finals belong to the stable
+            # track — the beta branch never chases them.
+            if [[ "$newest_any" == *-* && "$newest_any" != "$current" ]]; then
+              echo "::notice::$1 beta available ($newest_any)"
+              beta_needed=true
+            fi
+          }
+
+          check khipro_classic_version                  rank-coder/khipro-m17n                  clsc
+          check khipro_touchscreen_classic_version      KhiproTeam/khipro-mim-touchscreen       clsc
+          check khipro_dark_version                     KhiproTeam/khipro-dark-m17n             drk
+          check khipro_touchscreen_dark_version         KhiproTeam/khipro-dark-mim-touchscreen  drk
+
+          if [[ "$stable_needed" == true ]]; then
+            gh workflow run sync.yml --ref main
+            echo "dispatched: sync.yml (stable)"
+          fi
+          if [[ "$beta_needed" == true ]]; then
+            gh workflow run sync-beta.yml --ref main
+            echo "dispatched: sync-beta.yml (beta)"
+          fi
+          if [[ "$stable_needed" == false && "$beta_needed" == false ]]; then
+            echo "Everything current — nothing dispatched."
+          fi
