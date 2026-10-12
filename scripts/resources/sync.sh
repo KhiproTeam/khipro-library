@@ -68,9 +68,13 @@ sync_one() {
       return 0
     fi
     remote_version="${tag#${prefix}-v}"
-    if [[ "$remote_version" == "$current" ]]; then
+    if [[ "$remote_version" == "$current" ]] \
+       && [[ -s "$RESOURCES/$mim_dest" ]] && [[ -s "$RESOURCES/$tsv_dest" ]]; then
       log "$name: up to date ($current)"
       return 0
+    fi
+    if [[ "$remote_version" == "$current" ]]; then
+      log "$name: version matches meta but local files are missing — fetching"
     fi
     if [[ "$(printf '%s\n%s\n' "$current" "$remote_version" | sort -V | tail -1)" != "$remote_version" ]]; then
       log "$name: remote $remote_version is older than recorded $current — skipping"
