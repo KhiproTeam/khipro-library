@@ -181,12 +181,22 @@ if [[ ${#TARGETS[@]} -gt 1 ]]; then
 fi
 
 FAILED=0
+# `sync [pinned]`: everything after `sync` belongs to the sync target, not
+# the target loop.
+SYNC_ARGS=()
+if [[ "${TARGETS[0]:-}" == "sync" ]]; then
+  SYNC_ARGS=("${TARGETS[@]:1}")
+  TARGETS=("${TARGETS[0]}")
+fi
+
 for t in "${TARGETS[@]}"; do
   case "$t" in
     sync)
       # Host-side developer flow: fetch layouts, regenerate the spec tables,
       # then build + test so the regenerated tables are proven before commit.
-      "$ROOT/scripts/targets/sync.sh" || FAILED=$((FAILED + 1))
+      # Extra args forward to the sync (e.g. `sync pinned` re-fetches exactly
+      # the release versions recorded in khipro.meta — what CI runs).
+      "$ROOT/scripts/targets/sync.sh" "${SYNC_ARGS[@]}" || FAILED=$((FAILED + 1))
       ;;
     linux|macos|windows|android|wasm|test)
       build_one "$t" || FAILED=$((FAILED + 1))

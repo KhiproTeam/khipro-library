@@ -12,7 +12,7 @@ author=KhiproTeam
 
 # Versions (independent)
 library_version=0.3.0
-khipro_classic_version=37.0.0
-khipro_touchscreen_classic_version=36.6.0
-khipro_dark_version=1.0.0
-khipro_touchscreen_dark_version=1.0.0
+khipro_classic_version=37.0.1
+khipro_touchscreen_classic_version=37.0.1
+khipro_dark_version=1.1.0
+khipro_touchscreen_dark_version=1.1.0

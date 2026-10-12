@@ -111,12 +111,12 @@ export class KhiproEngine {
 }
 
 export const Khipro = {
-  /** Layout version (e.g. "35.0.1"). Empty until at least one KhiproEngine has been created. */
+  /** Classic layout version (e.g. "37.0.1"). Empty until at least one KhiproEngine has been created. */
   get layoutVersion(): string {
     if (!registeredModule) return '';
     return registeredModule.UTF8ToString(registeredModule._wasm_khipro_layout_version());
   },
-  /** Library version (e.g. "35.0.1-1"). Empty until at least one KhiproEngine has been created. */
+  /** Library version (e.g. "2.0"). Empty until at least one KhiproEngine has been created. */
   get libraryVersion(): string {
     if (!registeredModule) return '';
     return registeredModule.UTF8ToString(registeredModule._wasm_khipro_library_version());

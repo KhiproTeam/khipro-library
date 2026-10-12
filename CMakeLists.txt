@@ -9,10 +9,10 @@ foreach(line ${_meta_lines})
 endforeach()
 
 # project(VERSION) only accepts strictly numeric dotted versions, while
-# khipro_classic_version may carry a prerelease suffix. Strip the suffix for
+# library_version may carry a prerelease suffix. Strip the suffix for
 # project() only; the full strings stay in the KHIPRO_*_VERSION variables
 # below.
-string(REGEX REPLACE "-.*$" "" _meta_project_version "${_meta_khipro_classic_version}")
+string(REGEX REPLACE "-.*$" "" _meta_project_version "${_meta_library_version}")
 
 project(${_meta_name} VERSION ${_meta_project_version} LANGUAGES CXX C)
 
