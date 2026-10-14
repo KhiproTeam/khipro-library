@@ -3,6 +3,7 @@
 
 set(KHIPRO_CORE_SOURCES
   src/spec_generated.cpp
+  src/spec_pod.cpp
   src/engine.cpp
   src/convert.cpp
   src/api.cpp
