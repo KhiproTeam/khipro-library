@@ -43,6 +43,12 @@ case "$MODE" in
   pinned)
     if [[ -n "$changed" ]]; then
       fail "regenerated spec tables differ from the committed ones — tables and khipro.meta have drifted"
+      echo "--- drift diff (first 60 lines) ---" >&2
+      git -C "$ROOT" diff --stat -- core/src/spec_generated.h core/src/spec_classic.cpp \
+        core/src/spec_classic_touch.cpp core/src/spec_dark.cpp core/src/spec_dark_touch.cpp \
+        core/src/spec_dark_touch.cpp 2>/dev/null | head -10 >&2
+      git -C "$ROOT" diff -- core/src/spec_generated.h core/src/spec_classic.cpp \
+        core/src/spec_classic_touch.cpp core/src/spec_dark.cpp core/src/spec_dark_touch.cpp 2>/dev/null | head -60 >&2
       exit 1
     fi
     ok "spec tables match the recorded inputs"
