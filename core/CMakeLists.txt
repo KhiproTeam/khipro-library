@@ -29,6 +29,12 @@ function(khipro_apply_target_flags target_name)
   elseif(NOT MSVC)
     target_link_options(${target_name} PRIVATE -Wl,--gc-sections)
   endif()
+  if(WIN32 AND NOT MSVC)
+    # Ship a self-contained DLL: end users don't have libstdc++-6.dll,
+    # libgcc_s_seh-1.dll, or libwinpthread-1.dll, so the C++ runtime must be
+    # baked in. -static covers winpthread; the gcc/stdc++ flags are explicit.
+    target_link_options(${target_name} PRIVATE -static -static-libstdc++ -static-libgcc)
+  endif()
 endfunction()
 
 if(KHIPRO_BUILD_SHARED)
@@ -38,6 +44,13 @@ if(KHIPRO_BUILD_SHARED)
     OUTPUT_NAME khipro
     POSITION_INDEPENDENT_CODE ON
   )
+  # MinGW would name the DLL "libkhipro.dll" while staging and every doc
+  # promise "khipro.dll" — and the import lib embeds the DLL name it was
+  # built against, so a renamed DLL breaks dynamic consumers at load time.
+  # Drop the prefix on Windows so DLL and import lib agree on khipro.dll.
+  if(WIN32 AND NOT MSVC)
+    set_target_properties(khipro_shared PROPERTIES PREFIX "")
+  endif()
   target_compile_definitions(khipro_shared PRIVATE KHIPRO_BUILD_SHARED)
   if(MSVC)
     target_sources(khipro_shared PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/cmake/khipro.def")
