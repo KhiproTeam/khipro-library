@@ -60,6 +60,8 @@ A scheduled CI job runs daily:
 
 Library-only releases (bumping `library_version` without a layout change) are done manually by editing `khipro.meta` and pushing the `lib-v…` tag.
 
+Everything lands linearly on `main` — beta updates stack on top of the previous version, and when upstream stabilizes the current `-beta` line graduates by dropping its suffix. Stable consumers pin `lib-v…` tags; they never see betas unless they opt in.
+
 ## License
 
 MIT License — see [LICENSE](LICENSE).

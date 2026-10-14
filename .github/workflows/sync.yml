@@ -5,9 +5,24 @@ name: Layout Sync
 # pass, the regenerated tables and the version bump are committed to main.
 # No tag, no release here: the Release workflow publishes whatever main
 # carries once a library_version bump lands.
+#
+# Channels (workflow_dispatch input):
+#   stable — pull each layout's newest STABLE release. Bump rule: patch+1,
+#            except a -beta line graduates by dropping the suffix.
+#   beta   — pull each layout's newest release of ANY kind. Bump rule:
+#            always patch+1 plus a -beta suffix.
+# Both channels commit to main; they share the layout-sync concurrency group
+# so they queue instead of racing. Every version is unique, so every tag the
+# Release workflow cuts (lib-v<library_version>) is immutable.
 
 on:
   workflow_dispatch:
+    inputs:
+      channel:
+        description: "Which upstream releases to pull"
+        type: choice
+        options: [stable, beta]
+        default: stable
 
 permissions:
   contents: write
@@ -36,32 +51,55 @@ jobs:
       # Gate first: if any suite fails, nothing is committed. Upstream
       # inconsistency stops here instead of reaching main.
       - name: Sync layouts, verify spec tables, build + test
-        run: ./scripts/build.sh sync
+        env:
+          CHANNEL: ${{ inputs.channel }}
+        run: ./scripts/build.sh sync "${CHANNEL:-stable}"
 
       - name: Commit regenerated tables and version bump
+        env:
+          CHANNEL: ${{ inputs.channel }}
         run: |
+          channel="${CHANNEL:-stable}"
           changed="$(git status --porcelain -- core/src/spec_generated.cpp core/src/spec_generated.h khipro.meta)"
+          version="$(grep '^library_version=' khipro.meta | cut -d= -f2 | tr -d '[:space:]')"
+
+          # Only lines this pipeline auto-manages: X.Y[.Z] with an optional
+          # -beta suffix. Anything else (2.1-beta, 3.0-rc1, ...) is a manual
+          # line — leave it untouched.
+          if ! [[ "$version" =~ ^([0-9]+\.[0-9]+)(\.([0-9]+))?(-beta)?$ ]]; then
+            echo "::error::library_version ${version} is not auto-bumpable — bump manually."
+            exit 1
+          fi
+          base="${BASH_REMATCH[1]}"
+          patch="${BASH_REMATCH[3]:-0}"
+          is_beta="${BASH_REMATCH[4]:-}"
+
           if [[ -z "$changed" ]]; then
+            # Graduation: upstream stabilized and the tables already match the
+            # recorded beta — drop the suffix so main never rests on a
+            # prerelease line.
+            if [[ "$channel" == "stable" && -n "$is_beta" ]]; then
+              new_version="${base}.${patch}"
+              sed -i "s/^library_version=.*/library_version=${new_version}/" khipro.meta
+              git add khipro.meta
+              git commit -m "tables: graduate library ${version} -> ${new_version}"
+              git push origin main
+              echo "::notice::graduated ${version} -> ${new_version} (tables already current)."
+              exit 0
+            fi
             echo "Spec tables unchanged — layouts are already current."
             exit 0
           fi
 
-          version="$(grep '^library_version=' khipro.meta | cut -d= -f2 | tr -d '[:space:]')"
-          if [[ "$version" =~ - ]]; then
-            echo "::warning::library_version ${version} is a prerelease line — layout updates stay uncommitted until you bump manually."
-            exit 0
-          fi
-
-          # Auto-patch: 2.0 → 2.0.1, 2.0.9 → 2.0.10. The Release workflow
-          # turns whatever lands here into lib-v<library_version>.
-          if [[ "$version" =~ ^([0-9]+\.[0-9]+)(\.[0-9]+)?$ ]]; then
-            base="${BASH_REMATCH[1]}"
-            patch=0
-            [[ "$version" == *.*.* ]] && patch="${version##*.}"
-            new_version="${base}.$((patch + 1))"
+          # Bump rules:
+          #   beta channel:   patch+1 and append -beta (from stable or beta)
+          #   stable channel: graduate a -beta line in place, else patch+1
+          if [[ "$channel" == "beta" ]]; then
+            new_version="${base}.$((patch + 1))-beta"
+          elif [[ -n "$is_beta" ]]; then
+            new_version="${base}.${patch}"
           else
-            echo "::error::library_version ${version} is not auto-patchable — bump manually."
-            exit 1
+            new_version="${base}.$((patch + 1))"
           fi
           sed -i "s/^library_version=.*/library_version=${new_version}/" khipro.meta
 

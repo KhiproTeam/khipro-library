@@ -1,14 +1,14 @@
 name: Channel Check
 
 # Daily dispatcher. Compares the per-layout versions recorded in khipro.meta
-# against the upstream repos and dispatches the track that has work:
+# against the upstream repos and dispatches the channel that has work:
 #
-#   - a layout's newest STABLE release is newer than meta        → sync.yml
-#   - a layout's newest release (any kind) is a NEW beta         → sync-beta.yml
+#   - a layout's newest STABLE release is newer than meta        → sync.yml (stable)
+#   - a layout's newest release (any kind) is a NEW beta         → sync.yml (beta)
 #
-# Both can dispatch the same day (e.g. classic has a new stable while dark
-# ships a beta) — the tracks are independent: main carries stables, the beta
-# branch carries betas, neither can disturb the other.
+# Both channels land on main; they share the layout-sync concurrency group,
+# so same-day dispatches queue instead of racing. Stable always dispatches
+# first, and the beta sync re-evaluates on top of whatever stable just landed.
 
 on:
   schedule:
@@ -72,12 +72,15 @@ jobs:
           check khipro_touchscreen_dark_version         KhiproTeam/khipro-dark-mim-touchscreen  drk
 
           if [[ "$stable_needed" == true ]]; then
-            gh workflow run sync.yml --ref main
+            gh workflow run sync.yml --ref main -f channel=stable
             echo "dispatched: sync.yml (stable)"
           fi
           if [[ "$beta_needed" == true ]]; then
-            gh workflow run sync-beta.yml --ref main
-            echo "dispatched: sync-beta.yml (beta)"
+            gh workflow run sync.yml --ref main -f channel=beta
+            echo "dispatched: sync.yml (beta)"
+          fi
+          if [[ "$stable_needed" == true && "$beta_needed" == true ]]; then
+            echo "::notice::both channels dispatched — they queue on the layout-sync group, stable first."
           fi
           if [[ "$stable_needed" == false && "$beta_needed" == false ]]; then
             echo "Everything current — nothing dispatched."
