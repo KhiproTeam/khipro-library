@@ -35,6 +35,8 @@ case "$MODE" in
   *) echo "usage: sync.sh [fetch|develop|stable|beta|pinned]" >&2; exit 2 ;;
 esac
 
+mkdir -p "$RESOURCES"  # fresh checkouts have no resources/ dir (gitignored)
+
 log() { printf 'sync: %s\n' "$*" >&2; }
 meta_get() { grep -E "^$1=" "$META" | head -1 | cut -d= -f2-; }
 meta_set() { sed -i "s/^$1=.*/$1=$2/" "$META"; }
@@ -174,8 +176,6 @@ if [[ "$MODE" != develop ]]; then
     exit 1
   fi
 fi
-
-mkdir -p "$RESOURCES"
 
 WALKED=0
 failed=0
