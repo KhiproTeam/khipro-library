@@ -33,7 +33,7 @@ No system install. The Windows build does not use `pkg-config`.
 #include <stdio.h>
 
 int main(void) {
-    khipro_engine* e = khipro_create(KHIPRO_VARIANT_DEFAULT);
+    khipro_engine* e = khipro_create(KHIPRO_VARIANT_CLASSIC);
 
     khipro_result r = khipro_feed_key(e, "k");
     printf("preedit: %s\n", r.preedit);

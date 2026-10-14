@@ -3,58 +3,62 @@
 [![Release](https://github.com/khiproteam/library/actions/workflows/release.yml/badge.svg)](https://github.com/khiproteam/library/actions/workflows/release.yml)
 [![Release](https://img.shields.io/github/v/release/khiproteam/library)](https://github.com/khiproteam/library/releases)
 
-Cross-platform C++ library that implements the **Khipro compositional Bangla input method**. Two layout variants are bundled:
+Cross-platform C++ library that implements the **Khipro compositional Bangla input method**. Four layout variants are bundled:
 
-- **Default** — desktop keyboard layout, sourced from [`rank-coder/khipro-m17n`](https://github.com/rank-coder/khipro-m17n)
-- **Touchscreen** — phone/tablet variant, sourced from [`KhiproTeam/khipro-mim-touchscreen`](https://github.com/KhiproTeam/khipro-mim-touchscreen)
+- **Classic** — desktop keyboard layout, sourced from [`rank-coder/khipro-m17n`](https://github.com/rank-coder/khipro-m17n)
+- **Classic touchscreen** — phone/tablet variant, sourced from [`KhiproTeam/khipro-mim-touchscreen`](https://github.com/KhiproTeam/khipro-mim-touchscreen)
+- **Dark** — dark-grammar variant, sourced from [`KhiproTeam/khipro-dark-m17n`](https://github.com/KhiproTeam/khipro-dark-m17n)
+- **Dark touchscreen** — dark variant for touch devices, sourced from [`KhiproTeam/khipro-dark-mim-touchscreen`](https://github.com/KhiproTeam/khipro-dark-mim-touchscreen)
 
-Both `.mim` specs follow the [m17n](https://www.nongnu.org/m17n/) format and are embedded into the library at build time.
+All four `.mim` specs follow the [m17n](https://www.nongnu.org/m17n/) format. They are compiled into generated C++ tables at build time (`tools/codegen` → `core/src/spec_generated.cpp`); the shipped library contains data only — no runtime parser.
 
 ## Build
 
 ```bash
-make linux     # native Linux static + shared lib
-make windows   # cross-compile Windows DLL (via MinGW container)
-make android   # cross-compile Android .so per ABI
-make wasm      # WebAssembly module
-make test      # Linux build + conformance tests
+make linux     # Linux static + shared lib (native by default)
+make windows   # cross-compile Windows DLL (container by default)
+make android   # cross-compile Android .so per ABI (container by default)
+make wasm      # WebAssembly module (container by default)
+make test      # Build + all four conformance suites
+make sync      # Pull layouts, regenerate spec tables, build + test
 ```
 
-All builds run inside Docker containers (see [`container/`](container/)) so the host needs only `docker` and `make`. The Android AAR build (with Kotlin bindings) additionally needs the Android SDK/NDK and Gradle installed — see [`scripts/targets/android.sh`](scripts/targets/android.sh).
+Linux builds run natively on the host; cross targets (windows/android/wasm) run in containers (see [`container/`](container/)) — swap any target with `--native` / `--container`. The Android AAR build (with Kotlin bindings) additionally needs the Android SDK/NDK and Gradle — see [`scripts/targets/android.sh`](scripts/targets/android.sh).
 
 ## Layout
 
 ```
-core/         C++ library: engine, m17n parser, C ABI
+core/         C++ library: engine, generated spec tables, C ABI
+tools/        codegen: compiles .mim specs into C++ tables at build time
 bindings/     Language bindings (Android Kotlin, Web JS/Wasm)
 container/    Dockerfiles for cross-platform builds
 cmake/        CMake helper modules
-resources/    Bundled bn-khipro.mim specs + .lock (fetch provenance)
-tests/        Conformance tests against khipro-testcases TSV
-scripts/      Build orchestration, m17n sync, codegen
-khipro.meta   Single source of truth for package metadata + version
+resources/    Four bundled .mim specs + four conformance TSVs
+tests/        Conformance suites per layout + engine unit tests
+scripts/      Build orchestration, layout sync
+khipro.meta   Single source of truth for package metadata + versions
 ```
 
 ## Versioning
 
-`library_version = ${layout_version}-${library_patch}` — for example `35.0.1-1`.
+Five independent versions live in [`khipro.meta`](khipro.meta):
 
-- `layout_version` tracks the upstream m17n tag (e.g. `v35.0.1`). Bumps when a new m17n release is pulled in.
-- `library_patch` counts library-only changes (build fixes, ABI tweaks, etc.). Resets to `0` when `layout_version` bumps.
+- `library_version` — this library's own release line (e.g. `2.0.0`); releases tag as `lib-v<library_version>`
+- `khipro_classic_version`, `khipro_touchscreen_classic_version`, `khipro_dark_version`, `khipro_touchscreen_dark_version` — each tracks its upstream layout's release (e.g. `clsc-v37.0.1`, `drk-v1.1.0`), independently of the others
 
-Both fields live in [`khipro.meta`](khipro.meta); CMake, Python codegen, and bash scripts all read from there.
+Every build compiles the four layouts from `resources/*.mim` via `tools/codegen`; the versions are stamped into `core/src/spec_generated.h`. CMake and the bash scripts all read from `khipro.meta`.
 
-## Daily release
+## Release
 
-A scheduled CI job runs daily, checks the upstream m17n repositories for a new stable tag, and if one exists:
+A scheduled CI job runs daily:
 
-1. Pulls the new `.mim` files
-2. Bumps `layout_version`, resets `library_patch=0`
-3. Rebuilds all platforms and runs conformance tests
-4. On success: commits, tags `v${layout_version}-0`, and publishes a GitHub release
+1. Syncs each layout from its upstream repo — newest **stable** release by default, newest of any kind on the beta track (see `scripts/resources/sync.sh latest|beta|pinned`)
+2. Regenerates the spec tables and verifies they reproduce byte-identically from the fetched inputs
+3. Rebuilds all platforms and runs the conformance suites
+4. On success: commits, tags `lib-v<library_version>`, and publishes a GitHub release (beta layout versions are marked as prereleases)
 5. On failure: nothing is published — the repo stays on the previous version
 
-Library-only patch releases (bumping `library_patch` without an m17n change) are done manually by editing `khipro.meta` and pushing a tag.
+Library-only releases (bumping `library_version` without a layout change) are done manually by editing `khipro.meta` and pushing the `lib-v…` tag.
 
 ## License
 

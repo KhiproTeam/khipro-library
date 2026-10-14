@@ -28,7 +28,7 @@ app/
 
 ```kotlin
 dependencies {
-    implementation(files("libs/khipro-35.0.1-1.aar"))
+    implementation(files("libs/khipro-2.0.0.aar"))
 }
 ```
 
@@ -42,7 +42,7 @@ That's it — no `jniLibs` extraction, no `CMakeLists.txt`. The AAR packages the
 import com.khiproteam.khipro.KhiproEngine
 import com.khiproteam.khipro.KhiproVariant
 
-val engine = KhiproEngine.create(KhiproVariant.TOUCHSCREEN)
+val engine = KhiproEngine.create(KhiproVariant.CLASSIC_TOUCH)
 
 val r = engine.feedKey("k")           // returns KhiproResult
 println(r.preedit)                     // ক
@@ -63,7 +63,7 @@ Inside an `InputMethodService`:
 
 ```kotlin
 class KhiproImeService : InputMethodService() {
-    private val engine = KhiproEngine.create(KhiproVariant.TOUCHSCREEN)
+    private val engine = KhiproEngine.create(KhiproVariant.CLASSIC_TOUCH)
     private val ic by lazy { currentInputConnection }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {

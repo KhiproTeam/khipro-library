@@ -1,69 +1,71 @@
 # Building from source
 
-Skip the release archives and build locally when you need a debug build, a different ABI, or the latest unreleased m17n layout.
+Skip the release archives and build locally when you need a debug build, a different ABI, or the latest unreleased layout.
 
 ## Two paths
 
-| Path | Host needs | Use when |
-|---|---|---|
-| **Container** (default) | `docker` **or** `podman` + `make` | Recommended. Identical to CI. |
-| **Native** (`--native`) | Full toolchain per target | You can't run containers, or you're iterating fast on one platform. |
+Each target picks its sane default; flip any of them with a flag.
 
-## Container path (default)
+| Target | Default | Host needs | Flip with |
+|---|---|---|---|
+| `linux`, `macos`, `test`, `sync` | **Native** | CMake + C++17 toolchain | `--container` |
+| `windows`, `android`, `wasm` | **Container** | `docker` **or** `podman` + `make` | `--native` |
+
+## Quick start
 
 ```bash
 git clone https://github.com/khiproteam/library.git khipro
 cd khipro
 
-make linux      # .so + .a + pkg-config in dist/linux/x86_64/
-make windows    # .dll in dist/windows/x86_64/bin/
-make wasm       # .js + .wasm in dist/wasm/
-make android    # .aar in dist/android/
-make test       # Linux build + conformance cases (per-CSV count)
-make all        # all four platforms
+make linux      # .so + .a + pkg-config in dist/linux/x86_64/ (native)
+make windows    # .dll in dist/windows/x86_64/bin/ (container)
+make wasm       # .js + .wasm in dist/wasm/ (container)
+make android    # .aar in dist/android/ (container)
+make test       # Build + all four conformance suites
+make sync       # Pull layouts, regenerate spec tables, build + test
 ```
-
-That's it. The Dockerfile (under `container/`) has the full toolchain for every target; the Makefile just dispatches to `scripts/build.sh`.
 
 ### What `make` actually invokes
 
 ```bash
-./scripts/build.sh <target>     # target: linux | windows | android | wasm | test | all
+./scripts/build.sh <target>     # target: linux | macos | windows | android | wasm | test | sync | all
 ```
 
 Useful flags:
 
 ```bash
-./scripts/build.sh linux --native    # skip container, run on host
-./scripts/build.sh linux --quiet     # errors only
-./scripts/build.sh linux --verbose   # per-step detail
+./scripts/build.sh linux --container   # build linux in a container (CI-identical)
+./scripts/build.sh windows --native    # cross-compile on the host instead
+./scripts/build.sh linux --quiet       # errors only
+./scripts/build.sh linux --verbose     # per-step detail
 ```
 
 Useful env:
 
 ```bash
-KHIPRO_NO_SYNC=1   make linux      # skip the m17n upstream check (faster, offline)
-KHIPRO_DIST=/tmp/k make linux      # override output directory
-KHIPRO_CONTAINER=podman make linux # force podman over docker
+KHIPRO_NO_SYNC=1   make linux        # skip the upstream layout sync (offline)
+KHIPRO_DIST=/tmp/k make linux        # override output directory
+KHIPRO_CONTAINER=podman make wasm   # force podman over docker
 ```
 
-## Native path (`--native`)
+## Native builds
 
 No container — you provide the toolchain.
 
 ### Common to all targets
 
 - **CMake** ≥ 3.16
-- **Python** ≥ 3.9 (codegen for `embedded_specs.h`)
-- A C++17 compiler (gcc ≥ 9, clang ≥ 10)
+- A C++17 compiler (gcc ≥ 9, clang ≥ 10) — also used to build `tools/codegen`, which compiles the `.mim` layouts into `core/src/spec_generated.cpp` before CMake runs
+
+There is no Python and no other interpreter in the build.
 
 ### Linux
 
 ```bash
-sudo dnf install gcc-c++ cmake python3   # Fedora
-sudo apt install g++ cmake python3        # Debian/Ubuntu
+sudo dnf install gcc-c++ cmake   # Fedora
+sudo apt install g++ cmake       # Debian/Ubuntu
 
-KHIPRO_NO_SYNC=1 ./scripts/build.sh linux --native
+./scripts/build.sh linux
 ```
 
 ### Windows (cross-compile from Linux)
@@ -72,7 +74,7 @@ KHIPRO_NO_SYNC=1 ./scripts/build.sh linux --native
 sudo dnf install mingw64-gcc-c++ cmake
 sudo apt install mingw-w64 g++ cmake
 
-KHIPRO_NO_SYNC=1 ./scripts/build.sh windows --native
+./scripts/build.sh windows --native
 ```
 
 The Windows target always cross-compiles — there is no native-Windows build path today.
@@ -91,15 +93,15 @@ export ANDROID_NDK_HOME=/opt/android-ndk
 export ANDROID_HOME=/opt/android-sdk
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk
 
-KHIPRO_NO_SYNC=1 ./scripts/build.sh android --native
+./scripts/build.sh android --native
 ```
 
 ### Wasm
 
-- **Emscripten** SDK (emsdk) — activate the latest `emsdk install latest && emsdk activate latest && source ./emsdk_env.sh`
+- **Emscripten** SDK (emsdk) — activate the latest: `emsdk install latest && emsdk activate latest && source ./emsdk_env.sh`
 
 ```bash
-KHIPRO_NO_SYNC=1 ./scripts/build.sh wasm --native
+./scripts/build.sh wasm --native
 ```
 
 ## Output layout
@@ -128,33 +130,48 @@ dist/
 
 ## Tests
 
-Conformance tests run as part of `make test` (Linux build + tests). They execute every case from `resources/khipro-testcases*.tsv` against the engine:
+`make test` builds natively and runs everything:
+
+- **Conformance suites** — every case from the four `resources/khipro-testcases*.tsv` files, fed through the engine char-by-char (`feed_key` + stateless `convert` both verified per case)
+- **Unit tests** — engine mark semantics and the POD spec-table loader (including malformed-table abort paths)
 
 ```bash
 make test
 # ...
-# [ok] N cases   (one count per CSV — feed_key + convert each verified)
+# test: ok classic 104/104 · classic-touch 96/96 · dark 107/107 · dark-touch 99/99
+# PASS 14 unit tests
 ```
 
 For other platforms, the build step compiles the library but does not run tests — only Linux has a test harness today. Cross-platform verification in CI is "it builds and links."
 
 ## Syncing layouts
 
-By default every build first runs `scripts/resources/sync.sh` to check if the upstream m17n repos (`rank-coder/khipro-m17n`, `KhiproTeam/khipro-mim-touchscreen`) published a new tag. If they did, the build aborts with a "metadata out of date — run sync.sh" error.
+Each of the four layouts tracks its own upstream repo and version field in `khipro.meta`:
 
-To skip this check (for offline builds, fast iteration, or building a specific git revision):
+| Layout | Upstream | Tag scheme |
+|---|---|---|
+| Classic | [`rank-coder/khipro-m17n`](https://github.com/rank-coder/khipro-m17n) | `clsc-vX.Y.Z` |
+| Classic touchscreen | [`KhiproTeam/khipro-mim-touchscreen`](https://github.com/KhiproTeam/khipro-mim-touchscreen) | `clsc-vX.Y.Z` |
+| Dark | [`KhiproTeam/khipro-dark-m17n`](https://github.com/KhiproTeam/khipro-dark-m17n) | `drk-vX.Y.Z` |
+| Dark touchscreen | [`KhiproTeam/khipro-dark-mim-touchscreen`](https://github.com/KhiproTeam/khipro-dark-mim-touchscreen) | `drk-vX.Y.Z` |
+
+Every build first runs `scripts/resources/sync.sh` (stable track) to pull each layout's newest `X.Y.Z` release — the `.mim` spec **and** its paired conformance TSV. Then `tools/codegen` regenerates the spec tables; because emission is deterministic, any content change upstream shows up as a diff in `core/src/spec_generated.cpp`. Files are re-fetched even when versions match, so a re-tagged upstream fix is still detected.
+
+Modes:
+
+```bash
+./scripts/resources/sync.sh latest    # stable track — what every build runs
+./scripts/resources/sync.sh beta      # also picks up newer -beta prereleases
+./scripts/resources/sync.sh pinned    # re-fetch exactly the versions khipro.meta records (release gate)
+```
+
+To skip syncing entirely (offline builds, fast iteration, building a specific git revision):
 
 ```bash
 KHIPRO_NO_SYNC=1 make linux
 ```
 
-To force a refresh of the bundled `.mim` files and testcase CSVs:
-
-```bash
-./scripts/resources/fetch.sh
-```
-
-This regenerates `resources/bn-khipro*.mim`, `resources/khipro-testcases*.tsv`, `resources/.lock`, and `core/src/embedded_specs.h` (gitignored). Commit the first three if you're cutting a release manually; never commit `embedded_specs.h`.
+A failed sync (e.g. offline) fails the build — use `KHIPRO_NO_SYNC=1` to opt out. Commit `resources/`, `khipro.meta`, and the regenerated `core/src/spec_generated.*` together when a sync changes them.
 
 ## Clean
 
@@ -172,8 +189,9 @@ rm -rf build-linux
 
 | Symptom | Fix |
 |---|---|
-| `No podman/docker found` | Install one, or use `--native`. |
-| `metadata out of date` on every build | You're offline and sync can't reach GitHub. Set `KHIPRO_NO_SYNC=1`. |
+| `No podman/docker found` on a cross target | Install one, or use `--native` with the per-target toolchain. |
+| `see /tmp/khipro-sync.log` on every build | You're offline and sync can't reach GitHub. Set `KHIPRO_NO_SYNC=1`. |
 | `ANDROID_NDK_HOME must point to the Android NDK` | Native Android build without NDK. Export the env var or use the container path. |
 | Container build fails on SELinux (Fedora) | Already handled via `:Z` mount flag — file a bug if it still breaks. |
 | Wasm build can't find `emcc` | Run `source ./emsdk_env.sh` in the shell before invoking `make wasm --native`. |
+| `corrupted spec tables` at runtime | The compiled-in tables don't match the loader — rebuild; if it persists, file a bug with the `khipro.meta` versions. |

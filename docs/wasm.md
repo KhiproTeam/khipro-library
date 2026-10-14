@@ -22,7 +22,7 @@ Ship all five files together from the same directory. The wrapper loads `khipro.
   import { loadKhiproModule, KhiproEngine } from "./index.js";
 
   const createModule = await loadKhiproModule("./khipro.js");
-  const engine = await KhiproEngine.create(createModule, "default");
+  const engine = await KhiproEngine.create(createModule, "classic");
 
   const r = engine.feedKey("k");
   console.log(r.preedit);           // ক
@@ -35,13 +35,13 @@ Ship all five files together from the same directory. The wrapper loads `khipro.
 import loadKhiproWasm from "@khiproteam/khipro/khipro.js";
 import { KhiproEngine } from "@khiproteam/khipro";
 
-const engine = await KhiproEngine.create(loadKhiproWasm, "touchscreen");
+const engine = await KhiproEngine.create(loadKhiproWasm, "classic_touch");
 ```
 
 ## API
 
 ```ts
-type KhiproVariant = 'default' | 'touchscreen';
+type KhiproVariant = 'classic' | 'classic_touch' | 'dark' | 'dark_touch';
 
 interface KhiproResult {
   committedDelta: string;  // append to input.value
@@ -62,8 +62,8 @@ class KhiproEngine {
 // Top-level version accessors. Object literal with getters — empty strings
 // until the first KhiproEngine.create() has loaded the module.
 const Khipro: {
-  readonly layoutVersion: string;   // e.g. "35.0.1"
-  readonly libraryVersion: string;  // e.g. "35.0.1-1"
+  readonly layoutVersion: string;   // e.g. "37.0.1"
+  readonly libraryVersion: string;  // e.g. "2.0.0"
 };
 ```
 
@@ -73,7 +73,7 @@ const Khipro: {
 import { loadKhiproModule, KhiproEngine } from "./index.js";
 
 const createModule = await loadKhiproModule("./khipro.js");
-const engine = await KhiproEngine.create(createModule, "default");
+const engine = await KhiproEngine.create(createModule, "classic");
 
 document.querySelector("input")!.addEventListener("keydown", (ev) => {
   if (ev.key.length !== 1) return;             // skip Enter, Arrow keys, etc.
@@ -112,8 +112,8 @@ Use it as a reference implementation if you need richer UI (candidate windows, e
 
 ## Variant choice
 
-- **`default`** for desktop browsers with a physical keyboard.
-- **`touchscreen`** for mobile browsers — pair with your own soft keyboard or a contenteditable composer.
+- **`classic`** for desktop browsers with a physical keyboard.
+- **`classic_touch`** for mobile browsers — pair with your own soft keyboard or a contenteditable composer.
 
 ## Notes
 

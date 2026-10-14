@@ -44,8 +44,10 @@ All three platforms return a struct with the same four fields:
 
 | Value | C | Kotlin | TS |
 |---|---|---|---|
-| Desktop layout | `KHIPRO_VARIANT_DEFAULT = 0` | `KhiproVariant.DEFAULT` | `'default'` |
-| Touch layout | `KHIPRO_VARIANT_TOUCHSCREEN = 1` | `KhiproVariant.TOUCHSCREEN` | `'touchscreen'` |
+| Classic (desktop) | `KHIPRO_VARIANT_CLASSIC = 0` | `KhiproVariant.CLASSIC` | `'classic'` |
+| Classic touchscreen | `KHIPRO_VARIANT_CLASSIC_TOUCH = 1` | `KhiproVariant.CLASSIC_TOUCH` | `'classic_touch'` |
+| Dark | `KHIPRO_VARIANT_DARK = 2` | `KhiproVariant.DARK` | `'dark'` |
+| Dark touchscreen | `KHIPRO_VARIANT_DARK_TOUCH = 3` | `KhiproVariant.DARK_TOUCH` | `'dark_touch'` |
 
 ## Intentional differences across platforms
 
@@ -126,6 +128,6 @@ When you do not need preedit or backspace (batch transcription, clipboard conver
 
 ```c
 char out[256];
-khipro_convert(KHIPRO_VARIANT_DEFAULT, "ka", out, sizeof(out));
+khipro_convert(KHIPRO_VARIANT_CLASSIC, "ka", out, sizeof(out));
 // out == "কা"
 ```
