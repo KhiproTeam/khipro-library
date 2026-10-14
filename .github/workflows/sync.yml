@@ -1,43 +1,53 @@
 name: Layout Sync
 
-# Pull the newest release of each of the four layout repos, regenerate the
-# spec tables, and run every conformance suite. If — and only if — the tests
-# pass, the regenerated tables and the version bump are committed to main.
-# No tag, no release here: the Release workflow publishes whatever main
-# carries once a library_version bump lands.
+# Walks one of the three lines, one commit per upstream release taken:
 #
-# Channels (workflow_dispatch input):
-#   stable — pull each layout's newest STABLE release. Bump rule: patch+1,
-#            except a -beta line graduates by dropping the suffix.
-#   beta   — pull each layout's newest release of ANY kind. Bump rule:
-#            always patch+1 plus a -beta suffix.
-# Both channels commit to main; they share the layout-sync concurrency group
-# so they queue instead of racing. Every version is unique, so every tag the
-# Release workflow cuts (lib-v<library_version>) is immutable.
+#   develop (develop) — every upstream release, any kind, oldest first.
+#                       The union line; nothing releases from it.
+#   stable (main)     — finals only; then a library_version patch bump.
+#                       Pushing main triggers Release → lib-vX.Y.Z (full).
+#   beta (beta)       — betas only; then a bump with a -beta suffix.
+#                       Pushing beta triggers Release → lib-vX.Y.Z-beta.
+#
+# The release-line walks gate on the full conformance suites: nothing pushes
+# unless every suite passes. beta first merges main so prereleases carry the
+# latest code — layout files resolve to beta's own state on conflict.
+# Concurrency is per channel; the lines are independent branches.
 
 on:
   workflow_dispatch:
     inputs:
       channel:
-        description: "Which upstream releases to pull"
+        description: "Which line to walk"
         type: choice
-        options: [stable, beta]
-        default: stable
+        options: [develop, stable, beta]
+        default: develop
 
 permissions:
   contents: write
 
 concurrency:
-  group: layout-sync
+  group: layout-sync-${{ inputs.channel }}
   cancel-in-progress: false
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout (full history)
+      - name: Resolve branch
+        id: br
+        run: |
+          case '${{ inputs.channel }}' in
+            develop) echo "branch=develop" >> "$GITHUB_OUTPUT" ;;
+            stable)  echo "branch=main"    >> "$GITHUB_OUTPUT" ;;  # main is the stable release line
+            beta)    echo "branch=beta"    >> "$GITHUB_OUTPUT" ;;
+            *) echo "unknown channel"; exit 1 ;;
+          esac
+
+      - name: Checkout the line's branch (full history)
         uses: actions/checkout@v4
         with:
+          ref: ${{ steps.br.outputs.branch }}
           fetch-depth: 0
 
       - name: Configure Git identity
@@ -48,67 +58,23 @@ jobs:
       - name: Make scripts executable
         run: chmod +x scripts/build.sh scripts/targets/*.sh scripts/resources/*.sh
 
-      # Gate first: if any suite fails, nothing is committed. Upstream
-      # inconsistency stops here instead of reaching main.
-      - name: Sync layouts, verify spec tables, build + test
-        env:
-          CHANNEL: ${{ inputs.channel }}
-        run: ./scripts/build.sh sync "${CHANNEL:-stable}"
-
-      - name: Commit regenerated tables and version bump
-        env:
-          CHANNEL: ${{ inputs.channel }}
+      # Code fixes ride into the release lines via a main merge. Layout
+      # state (resources, meta, generated tables) belongs to the branch —
+      # on conflict, keep the branch's.
+      - name: Merge main (code flow into the beta line)
+        if: inputs.channel == 'beta'
         run: |
-          channel="${CHANNEL:-stable}"
-          changed="$(git status --porcelain -- core/src/spec_generated.cpp core/src/spec_generated.h khipro.meta)"
-          version="$(grep '^library_version=' khipro.meta | cut -d= -f2 | tr -d '[:space:]')"
-
-          # Only lines this pipeline auto-manages: X.Y[.Z] with an optional
-          # -beta suffix. Anything else (2.1-beta, 3.0-rc1, ...) is a manual
-          # line — leave it untouched.
-          if ! [[ "$version" =~ ^([0-9]+\.[0-9]+)(\.([0-9]+))?(-beta)?$ ]]; then
-            echo "::error::library_version ${version} is not auto-bumpable — bump manually."
-            exit 1
-          fi
-          base="${BASH_REMATCH[1]}"
-          patch="${BASH_REMATCH[3]:-0}"
-          is_beta="${BASH_REMATCH[4]:-}"
-
-          if [[ -z "$changed" ]]; then
-            # Graduation: upstream stabilized and the tables already match the
-            # recorded beta — drop the suffix so main never rests on a
-            # prerelease line.
-            if [[ "$channel" == "stable" && -n "$is_beta" ]]; then
-              new_version="${base}.${patch}"
-              sed -i "s/^library_version=.*/library_version=${new_version}/" khipro.meta
-              git add khipro.meta
-              git commit -m "tables: graduate library ${version} -> ${new_version}"
-              git push origin main
-              echo "::notice::graduated ${version} -> ${new_version} (tables already current)."
-              exit 0
+          git fetch origin main
+          if ! git merge origin/main -m "merge main into beta" --no-edit; then
+            git checkout HEAD -- resources khipro.meta core/src/spec_generated.cpp core/src/spec_generated.h 2>/dev/null || true
+            if git diff --name-only --diff-filter=U | grep -q .; then
+              git checkout HEAD -- $(git diff --name-only --diff-filter=U)
             fi
-            echo "Spec tables unchanged — layouts are already current."
-            exit 0
+            git commit -qm "merge main into beta (keep beta's layout state)"
           fi
 
-          # Bump rules:
-          #   beta channel:   patch+1 and append -beta (from stable or beta)
-          #   stable channel: graduate a -beta line in place, else patch+1
-          if [[ "$channel" == "beta" ]]; then
-            new_version="${base}.$((patch + 1))-beta"
-          elif [[ -n "$is_beta" ]]; then
-            new_version="${base}.${patch}"
-          else
-            new_version="${base}.$((patch + 1))"
-          fi
-          sed -i "s/^library_version=.*/library_version=${new_version}/" khipro.meta
+      - name: Walk releases, regenerate tables, build + test
+        run: ./scripts/build.sh sync ${{ inputs.channel }}
 
-          layouts="classic $(grep '^khipro_classic_version=' khipro.meta | cut -d= -f2)"
-          layouts+=" · classic-touch $(grep '^khipro_touchscreen_classic_version=' khipro.meta | cut -d= -f2)"
-          layouts+=" · dark $(grep '^khipro_dark_version=' khipro.meta | cut -d= -f2)"
-          layouts+=" · dark-touch $(grep '^khipro_touchscreen_dark_version=' khipro.meta | cut -d= -f2)"
-
-          git add core/src/spec_generated.cpp core/src/spec_generated.h khipro.meta
-          git commit -m "tables: ${layouts} (library ${new_version})"
-          git push origin main
-          echo "::notice::layout update committed — library_version ${version} -> ${new_version}; the Release workflow publishes it."
+      - name: Push the walked commits
+        run: git push origin HEAD:${{ steps.br.outputs.branch }}

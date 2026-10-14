@@ -50,17 +50,19 @@ Every build compiles the four layouts from `resources/*.mim` via `tools/codegen`
 
 ## Release
 
-A scheduled CI job runs daily:
+Three lines, each pulling from the four upstream layout repos — a daily CI check dispatches only the lines that have work:
 
-1. Syncs each layout from its upstream repo — newest **stable** release by default, newest of any kind on the beta track (see `scripts/resources/sync.sh latest|beta|pinned`)
-2. Regenerates the spec tables and verifies they reproduce byte-identically from the fetched inputs
-3. Rebuilds all platforms and runs the conformance suites
-4. On success: commits, tags `lib-v<library_version>`, and publishes a GitHub release (beta layout versions are marked as prereleases)
-5. On failure: nothing is published — the repo stays on the previous version
+| Line | Walks | Publishes |
+|---|---|---|
+| `develop` | everything — every release, any kind, **one commit per release**, oldest first | nothing (it's the union ledger) |
+| `main` | finals only | `lib-vX.Y.Z` — full release, "Latest" |
+| `beta` | betas only | `lib-vX.Y.Z-beta` — prerelease |
 
-Library-only releases (bumping `library_version` without a layout change) are done manually by editing `khipro.meta` and pushing the `lib-v…` tag.
+Each release-line walk takes one upstream release per commit, regenerates the spec tables, and gates on the full conformance suites before pushing — a broken upstream release stops its line instead of reaching consumers. Because each line follows only its own channel, purity is structural: main never contains a beta layout, beta never contains a final, and neither line ever moves backward. A single layout updating releases on its own; the other three ride along unchanged.
 
-Everything lands linearly on `main` — beta updates stack on top of the previous version, and when upstream stabilizes the current `-beta` line graduates by dropping its suffix. Stable consumers pin `lib-v…` tags; they never see betas unless they opt in.
+`library_version` is bumped per release on the release lines (`2.0.1`, `2.0.2-beta`, …); the four layout versions in [`khipro.meta`](khipro.meta) track their upstreams independently. Library-only releases (code changes without a layout change) land on main and release on the next push; the beta line picks code up via a periodic merge of main.
+
+See `scripts/resources/sync.sh fetch|develop|stable|beta|pinned` and `.github/workflows/` for the machinery.
 
 ## License
 

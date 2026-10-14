@@ -1,14 +1,16 @@
 name: Channel Check
 
-# Daily dispatcher. Compares the per-layout versions recorded in khipro.meta
-# against the upstream repos and dispatches the channel that has work:
+# Daily dispatcher — decides which of the three lines has work and dispatches
+# only those. Per layout repo it compares three pointers against the full
+# ordered release list:
 #
-#   - a layout's newest STABLE release is newer than meta        → sync.yml (stable)
-#   - a layout's newest release (any kind) is a NEW beta         → sync.yml (beta)
+#   develop pointer (any kind)   → sync.yml channel=develop  (union ledger)
+#   main pointer (finals only)   → sync.yml channel=stable   → lib-vX.Y.Z
+#   beta pointer (betas only)    → sync.yml channel=beta     → lib-vX.Y.Z-beta
 #
-# Both channels land on main; they share the layout-sync concurrency group,
-# so same-day dispatches queue instead of racing. Stable always dispatches
-# first, and the beta sync re-evaluates on top of whatever stable just landed.
+# Pointers live in each line's khipro.meta (the four khipro_*_version fields).
+# The release ordering treats a beta as preceding the final of the same base
+# (37.0.2-beta before 37.0.2) — see scripts/resources/releases.sh.
 
 on:
   schedule:
@@ -25,63 +27,64 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Make scripts executable
         run: chmod +x scripts/resources/*.sh
 
-      - name: Compare meta against upstream releases
+      - name: Compare all three pointers against upstream releases
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          meta_get() { grep -E "^$1=" khipro.meta | head -1 | cut -d= -f2-; }
-          newest() { # <repo> <prefix> <stable|any>
-            local sfx=""
-            [[ "$3" == any ]] && sfx="(-[a-z0-9.]+)?"
-            git ls-remote --tags --quiet "https://github.com/$1.git" \
-              | awk '{print $2}' | sed 's|refs/tags/||' | grep -v '\^{}$' \
-              | grep -E "^${2}-v[0-9]+\.[0-9]+\.[0-9]+${sfx}$" | sort -V | tail -1
-          }
+          # shellcheck source=scripts/resources/releases.sh
+          source scripts/resources/releases.sh
 
-          stable_needed=false
-          beta_needed=false
+          meta_field() { git show "$1:khipro.meta" 2>/dev/null | grep -E "^$2=" | head -1 | cut -d= -f2-; }
+          meta_get()    { grep -E "^$1=" khipro.meta        | head -1 | cut -d= -f2-; }
+          git fetch origin develop beta --depth 1 >/dev/null 2>&1 || true
+
+          develop_need=false
+          stable_need=false
+          beta_need=false
           check() { # <key> <repo> <prefix>
-            local current newest_stable newest_any
-            current="$(meta_get "$1")"
-            newest_stable="$(newest "$2" "$3" stable)"
-            newest_any="$(newest "$2" "$3" any)"
-            echo "$1: meta=$current stable=$newest_stable any=$newest_any"
+            local list d s b betas
+            list="$(fetch_ordered_releases "$2" "$3")" || {
+              echo "::warning::$1: release listing failed for $2 — skipping this run"
+              return 0
+            }
+            d="$(meta_field "origin/develop" "$1")"
+            s="$(meta_get "$1")"   # main's own meta: we checked out main
+            b="$(meta_field "origin/beta" "$1")"
+            echo "$1: develop=${d:-<none>} main=${s:-<none>} beta=${b:-<none>} upstream=$(newest_of_kind "$list" any)"
 
-            # Stable track: a stable release newer than meta's base version.
-            if [[ "$(printf '%s\n%s\n' "${current%%-*}" "${newest_stable%%-*}" | sort -V | tail -1)" == "${newest_stable%%-*}" \
-                  && "${newest_stable%%-*}" != "${current%%-*}" ]]; then
-              echo "::notice::$1 stable update available ($newest_stable)"
-              stable_needed=true
-            fi
-            # Beta track: the newest release of any kind is a beta and not
-            # already the recorded one. Stable finals belong to the stable
-            # track — the beta branch never chases them.
-            if [[ "$newest_any" == *-* && "$newest_any" != "$current" ]]; then
-              echo "::notice::$1 beta available ($newest_any)"
-              beta_needed=true
-            fi
+            [[ -n "$(slice_after "$list" "$d")" ]] && develop_need=true
+            local finals; finals="$(mktemp)"
+            awk -F'\t' '$2 == "final"' "$list" >"$finals"
+            [[ -n "$(slice_after "$finals" "$s")" ]] && stable_need=true
+            betas="$(mktemp)"
+            awk -F'\t' '$2 == "beta"' "$list" >"$betas"
+            [[ -n "$(slice_after "$betas" "$b")" ]] && beta_need=true
+            rm -f "$list" "$finals" "$betas"
           }
 
-          check khipro_classic_version                  rank-coder/khipro-m17n                  clsc
-          check khipro_touchscreen_classic_version      KhiproTeam/khipro-mim-touchscreen       clsc
-          check khipro_dark_version                     KhiproTeam/khipro-dark-m17n             drk
-          check khipro_touchscreen_dark_version         KhiproTeam/khipro-dark-mim-touchscreen  drk
+          check khipro_classic_version             rank-coder/khipro-m17n                  clsc
+          check khipro_touchscreen_classic_version KhiproTeam/khipro-mim-touchscreen       clsc
+          check khipro_dark_version                KhiproTeam/khipro-dark-m17n             drk
+          check khipro_touchscreen_dark_version    KhiproTeam/khipro-dark-mim-touchscreen  drk
 
-          if [[ "$stable_needed" == true ]]; then
+          if [[ "$develop_need" == true ]]; then
+            gh workflow run sync.yml --ref main -f channel=develop
+            echo "dispatched: sync.yml (develop)"
+          fi
+          if [[ "$stable_need" == true ]]; then
             gh workflow run sync.yml --ref main -f channel=stable
             echo "dispatched: sync.yml (stable)"
           fi
-          if [[ "$beta_needed" == true ]]; then
+          if [[ "$beta_need" == true ]]; then
             gh workflow run sync.yml --ref main -f channel=beta
             echo "dispatched: sync.yml (beta)"
           fi
-          if [[ "$stable_needed" == true && "$beta_needed" == true ]]; then
-            echo "::notice::both channels dispatched — they queue on the layout-sync group, stable first."
-          fi
-          if [[ "$stable_needed" == false && "$beta_needed" == false ]]; then
+          if [[ "$develop_need" == false && "$stable_need" == false && "$beta_need" == false ]]; then
             echo "Everything current — nothing dispatched."
           fi

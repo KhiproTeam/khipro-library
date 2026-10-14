@@ -1,11 +1,12 @@
 name: Release
 
-# Publishes whatever main carries as lib-v<library_version>.
+# Publishes a release line as lib-v<library_version>.
 #
-# Layout updates land on main via the Layout Sync workflow (sync + tests +
-# auto-patched library_version); library releases are a manual
-# library_version bump + push. Either way, a push to main that has a
-# lib-v<library_version> tag missing gets released by this workflow.
+# The Layout Sync workflow walks the release lines — finals on `main`, betas
+# on `beta` — and pushes them; any push to either branch whose
+# lib-v<library_version> tag is missing gets released here. main cuts full
+# releases; beta cuts prereleases (its library_version carries the -beta
+# suffix). Manual library_version bumps work the same way.
 #
 # Pipeline:
 #   1. Re-fetch the pinned upstream inputs (the release versions recorded in
@@ -14,13 +15,13 @@ name: Release
 #      and the release aborts.
 #   2. Build + run every conformance suite natively.
 #   3. Cross-build windows/android/wasm in containers.
-#   4. Tag v<library_version>, push, create the GitHub release, attach
+#   4. Tag lib-v<library_version>, push, create the GitHub release, attach
 #      prebuilt artifacts. A macOS job builds the tagged commit and attaches
 #      the universal macOS library.
 
 on:
   push:
-    branches: [main]
+    branches: [main, beta]
   workflow_dispatch:
 
 # contents: write → push commits/tags, create GitHub releases

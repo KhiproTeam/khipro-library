@@ -155,13 +155,15 @@ Each of the four layouts tracks its own upstream repo and version field in `khip
 | Dark | [`KhiproTeam/khipro-dark-m17n`](https://github.com/KhiproTeam/khipro-dark-m17n) | `drk-vX.Y.Z` |
 | Dark touchscreen | [`KhiproTeam/khipro-dark-mim-touchscreen`](https://github.com/KhiproTeam/khipro-dark-mim-touchscreen) | `drk-vX.Y.Z` |
 
-Every build first runs `scripts/resources/sync.sh` (stable track) to pull each layout's newest `X.Y.Z` release — the `.mim` spec **and** its paired conformance TSV. Then `tools/codegen` regenerates the spec tables; because emission is deterministic, any content change upstream shows up as a diff in `core/src/spec_generated.cpp`. Files are re-fetched even when versions match, so a re-tagged upstream fix is still detected.
+Every build first runs `scripts/resources/sync.sh` (fetch mode) to pull each layout's newest `X.Y.Z` release — the `.mim` spec **and** its paired conformance TSV. Then `tools/codegen` regenerates the spec tables; because emission is deterministic, any content change upstream shows up as a diff in `core/src/spec_generated.cpp`. Files are re-fetched even when versions match, so a re-tagged upstream fix is still detected.
 
 Modes:
 
 ```bash
-./scripts/resources/sync.sh latest    # stable track — what every build runs
-./scripts/resources/sync.sh beta      # also picks up newer -beta prereleases
+./scripts/resources/sync.sh fetch     # newest-stable pull into your tree — what every build runs
+./scripts/resources/sync.sh develop   # develop: one commit per upstream release (any kind)
+./scripts/resources/sync.sh stable    # main walk, finals only (must run on main)
+./scripts/resources/sync.sh beta      # beta walk, betas only (must run on the beta branch)
 ./scripts/resources/sync.sh pinned    # re-fetch exactly the versions khipro.meta records (release gate)
 ```
 
@@ -171,7 +173,9 @@ To skip syncing entirely (offline builds, fast iteration, building a specific gi
 KHIPRO_NO_SYNC=1 make linux
 ```
 
-A failed sync (e.g. offline) fails the build — use `KHIPRO_NO_SYNC=1` to opt out. Commit `resources/`, `khipro.meta`, and the regenerated `core/src/spec_generated.*` together when a sync changes them.
+A failed sync (e.g. offline) fails the build — use `KHIPRO_NO_SYNC=1` to opt out.
+
+Releases are cut from the release lines: `main` carries the newest **final** of each layout and publishes `lib-vX.Y.Z`; the `beta` branch carries the newest **beta** of each layout and publishes `lib-vX.Y.Z-beta` prereleases. The `develop` branch keeps a one-commit-per-release ledger of everything upstream ships, any kind. Local runs of the line walks are guarded — they refuse to run off their branch unless `KHIPRO_SYNC_NO_BRANCH_GUARD=1`.
 
 ## Clean
 
