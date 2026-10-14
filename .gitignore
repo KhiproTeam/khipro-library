@@ -25,5 +25,3 @@ bindings/ios/build/
 *.xcuserstate
 local.properties
 tmp/
-resources/*.mim
-resources/*.tsv
