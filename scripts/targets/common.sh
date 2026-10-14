@@ -69,7 +69,7 @@ generate_spec_tables() {
       --layouts dark:"$ROOT/resources/bn-khipro-dark.mim" \
       --layouts dark_touch:"$ROOT/resources/bn-khipro-dark-touchscreen.mim" \
       --out-h "$ROOT/core/src/spec_generated.h" \
-      --out-cpp "$ROOT/core/src/spec_generated.cpp" >/tmp/khipro-codegen.log 2>&1; then
+      --out-dir "$ROOT/core/src" >/tmp/khipro-codegen.log 2>&1; then
     fail "see /tmp/khipro-codegen.log"
     return 1
   fi

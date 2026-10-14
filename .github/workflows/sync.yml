@@ -66,7 +66,7 @@ jobs:
         run: |
           git fetch origin main
           if ! git merge origin/main -m "merge main into beta" --no-edit; then
-            git checkout HEAD -- resources khipro.meta core/src/spec_generated.cpp core/src/spec_generated.h 2>/dev/null || true
+            git checkout HEAD -- resources khipro.meta core/src/spec_generated.h core/src/spec_classic.cpp core/src/spec_classic_touch.cpp core/src/spec_dark.cpp core/src/spec_dark_touch.cpp 2>/dev/null || true
             if git diff --name-only --diff-filter=U | grep -q .; then
               git checkout HEAD -- $(git diff --name-only --diff-filter=U)
             fi

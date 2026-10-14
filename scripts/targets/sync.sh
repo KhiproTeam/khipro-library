@@ -38,7 +38,7 @@ fi
 step "codegen"
 generate_spec_tables
 
-changed="$(git -C "$ROOT" status --porcelain -- core/src/spec_generated.cpp core/src/spec_generated.h khipro.meta resources)"
+changed="$(git -C "$ROOT" status --porcelain -- core/src/spec_generated.h core/src/spec_classic.cpp core/src/spec_classic_touch.cpp core/src/spec_dark.cpp core/src/spec_dark_touch.cpp khipro.meta resources)"
 case "$MODE" in
   pinned)
     if [[ -n "$changed" ]]; then
@@ -79,7 +79,9 @@ if [[ "$MODE" == stable || "$MODE" == beta ]]; then
   if [[ -z "$pending" ]]; then
     skip "nothing to commit (walk took no content)"
   else
-    git -C "$ROOT" add khipro.meta core/src/spec_generated.cpp core/src/spec_generated.h
+    git -C "$ROOT" add khipro.meta core/src/spec_generated.h \
+      core/src/spec_classic.cpp core/src/spec_classic_touch.cpp \
+      core/src/spec_dark.cpp core/src/spec_dark_touch.cpp
     git -C "$ROOT" commit -q -m "tables: library $(meta_get library_version)"
     ok "tables: library $(meta_get library_version)"
   fi

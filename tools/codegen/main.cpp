@@ -52,7 +52,7 @@ std::map<std::string, std::string> read_meta(const std::string& path) {
 
 void usage() {
   std::cerr << "usage: codegen --meta <khipro.meta> --layouts <name>:<mim>... "
-               "--out-h <path> --out-cpp <path>\n";
+               "--out-h <path> --out-dir <dir>\n";
   std::exit(2);
 }
 
@@ -62,7 +62,7 @@ int main(int argc, char** argv) {
   std::string meta_path;
   std::vector<std::pair<std::string, std::string>> layout_paths;
   std::string out_h;
-  std::string out_cpp;
+  std::string out_dir;
 
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
@@ -79,13 +79,13 @@ int main(int argc, char** argv) {
       layout_paths.emplace_back(spec.substr(0, colon), spec.substr(colon + 1));
     } else if (arg == "--out-h") {
       out_h = value();
-    } else if (arg == "--out-cpp") {
-      out_cpp = value();
+    } else if (arg == "--out-dir") {
+      out_dir = value();
     } else {
       usage();
     }
   }
-  if (meta_path.empty() || layout_paths.empty() || out_h.empty() || out_cpp.empty()) {
+  if (meta_path.empty() || layout_paths.empty() || out_h.empty() || out_dir.empty()) {
     usage();
   }
 
@@ -122,8 +122,8 @@ int main(int argc, char** argv) {
   }
 
   std::string header;
-  std::string source;
-  khipro::codegen::emit_spec_sources(layouts, versions, &header, &source);
+  std::vector<khipro::codegen::GeneratedSource> sources;
+  khipro::codegen::emit_spec_sources(layouts, versions, &header, &sources);
 
   const auto write = [](const std::string& path, const std::string& text) {
     std::ofstream file(path, std::ios::binary);
@@ -134,9 +134,12 @@ int main(int argc, char** argv) {
     file << text;
   };
   write(out_h, header);
-  write(out_cpp, source);
+  for (const auto& src : sources) {
+    write(out_dir + "/" + src.filename, src.content);
+  }
 
-  std::cout << "codegen: wrote " << out_h << " and " << out_cpp << " ("
+  std::cout << "codegen: wrote " << out_h << " and " << sources.size()
+            << " per-layout sources in " << out_dir << " ("
             << layouts.size() << " layouts, library " << library_version << ")\n";
   return 0;
 }
