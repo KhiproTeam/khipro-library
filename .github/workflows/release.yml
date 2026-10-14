@@ -166,6 +166,30 @@ jobs:
           if [[ -n "$prev_tag" ]]; then
             args+=(--notes-start-tag "$prev_tag")
           fi
+
+          # Notes header: the exact layout versions this release ships, above
+          # the auto-generated changelog (with both set, GitHub appends the
+          # generated notes to the provided body).
+          meta_get() { grep -E "^$1=" khipro.meta | head -1 | cut -d= -f2-; }
+          notes_file="$(mktemp)"
+          cat >"$notes_file" <<EOF
+          ## Layouts shipped
+
+          | Layout | Version |
+          |---|---|
+          | Classic | \`$(meta_get khipro_classic_version)\` |
+          | Classic touchscreen | \`$(meta_get khipro_touchscreen_classic_version)\` |
+          | Dark | \`$(meta_get khipro_dark_version)\` |
+          | Dark touchscreen | \`$(meta_get khipro_touchscreen_dark_version)\` |
+
+          > Breaking vs the v36.x line: four layouts across the ABI
+          > (\`KHIPRO_VARIANT_CLASSIC / _CLASSIC_TOUCH / _DARK / _DARK_TOUCH\` —
+          > old \`DEFAULT\`/\`TOUCHSCREEN\` names are gone; numeric values 0/1 kept).
+          > Kotlin: \`KhiproVariant.CLASSIC…\`; TypeScript: \`'classic' | 'classic_touch' | 'dark' | 'dark_touch'\`.
+          > \`library_version\` is now this library's own release line (${ver}).
+          EOF
+          args+=(--notes-file "$notes_file")
+
           gh release create "$TAG" "${args[@]}"
 
       - name: Upload artifacts to release
