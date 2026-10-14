@@ -63,6 +63,15 @@ if(KHIPRO_BUILD_STATIC)
   add_library(khipro::static ALIAS khipro_static)
   set_target_properties(khipro_static PROPERTIES OUTPUT_NAME khipro)
   khipro_apply_target_flags(khipro_static)
+  # The static archive carries C++ object code, so consumers must link the
+  # GCC C++ runtime. Inject the static-runtime flags into the exported target
+  # so find_package(khipro) consumers get them without knowing about this.
+  if(WIN32 AND NOT MSVC)
+    # -static covers libgcc, libstdc++ and winpthread in one flag, making
+    # consumer executables self-contained with zero extra link flags.
+    set_property(TARGET khipro_static PROPERTY INTERFACE_LINK_OPTIONS
+      "-static")
+  endif()
 endif()
 
 add_library(khipro ALIAS khipro_static)
@@ -92,6 +101,11 @@ install(EXPORT khiproTargets
   NAMESPACE khipro::
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/khipro
 )
+# Build-tree copy: the dist staging step packages this alongside the libs.
+export(EXPORT khiproTargets
+  FILE "${CMAKE_CURRENT_BINARY_DIR}/khiproTargets.cmake"
+  NAMESPACE khipro::
+)
 
 include(CMakePackageConfigHelpers)
 configure_package_config_file(
@@ -109,6 +123,14 @@ install(FILES
   "${CMAKE_CURRENT_BINARY_DIR}/khiproConfigVersion.cmake"
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/khipro
 )
+
+# MinGW static consumers need the GCC runtime flags; pkg-config injects
+# them via Libs.private so `pkg-config --libs khipro` just works.
+if(WIN32 AND NOT MSVC)
+  set(KHIPRO_PC_LIBS_PRIVATE "-static")
+else()
+  set(KHIPRO_PC_LIBS_PRIVATE "")
+endif()
 
 configure_file(
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake/khipro.pc.in"

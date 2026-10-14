@@ -50,7 +50,7 @@ step "stage"
 mkdir -p "$OUT/lib"
 cp "$BUILD/core/libkhipro.so" "$OUT/lib/"
 cp "$BUILD/core/libkhipro.a" "$OUT/lib/"
-stage_c_sdk "$OUT"
+stage_c_sdk "$OUT" "$BUILD"
 ok "$OUT"
 
 finish

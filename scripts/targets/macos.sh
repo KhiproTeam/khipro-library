@@ -63,7 +63,7 @@ cp "$BUILD/core/libkhipro.dylib" "$OUT/lib/"
 cp "$BUILD/core/libkhipro.a" "$OUT/lib/"
 # Make the dylib relocatable so consumers can link via @rpath.
 install_name_tool -id @rpath/libkhipro.dylib "$OUT/lib/libkhipro.dylib"
-stage_c_sdk "$OUT"
+stage_c_sdk "$OUT" "$BUILD"
 # The deployment target is the point of the flag above, so verify it actually
 # reached the objects instead of trusting cmake to have honoured it.
 got="$(otool -l "$OUT/lib/libkhipro.a" | awk '/minos/ {print $2}' | sort -u | tr '\n' ' ')"

@@ -4,8 +4,8 @@
 # shellcheck source=../resources/meta.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../resources/meta.sh"
 
-stage_c_sdk() {
-  local dest="$1"
+stage_c_sdk() { # <dest> <build_dir>
+  local dest="$1" build_dir="$2"
   mkdir -p "$dest/include/khipro"
 
   # Stamp version macros into the distributed header. The source header stays
@@ -42,6 +42,17 @@ stage_c_sdk() {
       stamped=1
     }
   ' "$ROOT/core/include/khipro/khipro.h" >"$dest/include/khipro/khipro.h"
+
+  # CMake package + pkg-config, so consumers' build systems pick up the
+  # static-runtime link flags automatically (MinGW).
+  if [[ -n "$build_dir" ]]; then
+    mkdir -p "$dest/lib/cmake/khipro" "$dest/lib/pkgconfig"
+    local f
+    for f in khiproTargets.cmake khiproConfig.cmake khiproConfigVersion.cmake; do
+      [[ -f "$build_dir/core/$f" ]] && cp "$build_dir/core/$f" "$dest/lib/cmake/khipro/"
+    done
+    [[ -f "$build_dir/core/khipro.pc" ]] && cp "$build_dir/core/khipro.pc" "$dest/lib/pkgconfig/"
+  fi
 }
 
 stage_android_sdk() {

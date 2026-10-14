@@ -39,7 +39,7 @@ a=( "$BUILD/core"/*.dll.a "$BUILD/core"/*.a )
 for f in "${a[@]}"; do
   [[ -f "$f" ]] && cp "$f" "$OUT/lib/"
 done
-stage_c_sdk "$OUT"
+stage_c_sdk "$OUT" "$BUILD"
 ok "$OUT"
 
 finish

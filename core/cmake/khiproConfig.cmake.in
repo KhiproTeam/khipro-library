@@ -3,4 +3,12 @@
 include(CMakeFindDependencyMacro)
 include("${CMAKE_CURRENT_LIST_DIR}/khiproTargets.cmake")
 
+# Friendly aliases matching the in-tree target names.
+if(NOT TARGET khipro::static)
+  add_library(khipro::static ALIAS khipro::khipro_static)
+endif()
+if(NOT TARGET khipro::shared)
+  add_library(khipro::shared ALIAS khipro::khipro_shared)
+endif()
+
 check_required_components(khipro)

@@ -74,19 +74,21 @@ For broad MSVC support, set `KHIPRO_USE_SHARED` when including the header so the
 
 ## Static link
 
-Link `libkhipro.a` directly with MinGW:
+`libkhipro.a` is a C++ static library, so the GCC C++ runtime (libstdc++, libgcc, winpthread) must be linked with it — and it must be linked *statically*, or your app develops runtime dependencies on MinGW DLLs that ordinary Windows doesn't have.
+
+- **CMake consumers**: automatic. `find_package(khipro)` + `target_link_libraries(app PRIVATE khipro::static)` injects the flags for you.
+- **pkg-config consumers**: automatic. `pkg-config --libs khipro` carries them in `Libs.private`.
+- **Raw link commands**: add `-static` yourself:
 
 ```powershell
-g++ app.cpp -Iwindows/x86_64/include -Lwindows/x86_64/lib -lkhipro -o app.exe -static-libgcc -static-libstdc++
+g++ app.cpp -Iwindows/x86_64/include -Lwindows/x86_64/lib -lkhipro -o app.exe -static
 ```
-
-`libkhipro.a` is a C++ static library, so the GCC C++ runtime must be linked with it. `-static-libgcc -static-libstdc++` bakes the runtime into your exe — without those flags your app depends on `libstdc++-6.dll` / `libgcc_s_seh-1.dll`, which exist only on machines with MinGW installed. Keep `-lwinpthread` (or add `-static` to cover it) for the same reason.
 
 ## Runtime DLLs
 
-Both shipped artifacts are self-contained: `khipro.dll` is built with the GCC C++ runtime baked in (`-static -static-libstdc++ -static-libgcc`), so end users need no MinGW runtime DLLs — the only dependencies are standard Windows system libraries (KERNEL32, UCRT, USER32).
+Both shipped artifacts are self-contained: `khipro.dll` is built with the GCC C++ runtime baked in, and consumers of the static lib get the same treatment via the flags above. The only dependencies anywhere are standard Windows system libraries (KERNEL32, UCRT, USER32).
 
-If you rebuild the library yourself, keep those static flags. A plain MinGW build silently depends on `libstdc++-6.dll`, `libgcc_s_seh-1.dll`, and `libwinpthread-1.dll`; the app compiles and links fine everywhere, then fails to *load* on machines without MinGW — the failure appears at startup, not at build time, which makes it easy to miss.
+If you rebuild the library yourself, keep the static flags. A plain MinGW build silently depends on `libstdc++-6.dll`, `libgcc_s_seh-1.dll`, and `libwinpthread-1.dll`; the app compiles and links fine everywhere, then fails to *load* on machines without MinGW — the failure appears at startup, not at build time, which makes it easy to miss.
 
 ## TSF (Text Services Framework)
 
