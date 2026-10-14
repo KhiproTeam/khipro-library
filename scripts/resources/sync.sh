@@ -56,10 +56,11 @@ LAYOUTS=(
 )
 
 # Walk one repo: every release after the recorded pointer, one fetch + meta
-# update per release. kind_filter: "any" (ledger, beta) or "final" (stable).
-# staging: "meta" (ledger on main — resources are gitignored there, so the
-# commit carries the pointer) or "full" (release branches — resources and
-# regenerated spec tables are committed per release). Increments WALKED.
+# update per release. kind_filter: "any" (develop), "final" (stable) or
+# "beta" (beta). staging: "meta" (develop ledger — one meta-pointer commit
+# per release) or "none" (release lines — the caller commits meta + tables
+# after the conformance gate passes; failure commits nothing). Increments
+# WALKED.
 walk_repo() { # <staging> <kind_filter> <name> <repo> <prefix> <mim_src> <mim_dest> <tsv_src> <tsv_dest> <key>
   local staging="$1" filter="$2" name="$3" repo="$4" prefix="$5"
   local mim_src="$6" mim_dest="$7" tsv_src="$8" tsv_dest="$9" key="${10}"
@@ -89,17 +90,12 @@ walk_repo() { # <staging> <kind_filter> <name> <repo> <prefix> <mim_src> <mim_de
         return 1
       fi
       if ! fetch "$repo" "$tag" "$tsv_src" "$tsv_dest"; then
-        rm -f "$RESOURCES/$tsv_dest"
         log "$name: no paired TSV at $tag — keeping current testcases"
       fi
       meta_set "$key" "$version"
       walked_here=$((walked_here + 1))
       log "$name: took $tag"
-      if [[ "$staging" == full ]]; then
-        generate_spec_tables
-        git -C "$ROOT" add resources khipro.meta core/src/spec_generated.cpp core/src/spec_generated.h
-        git -C "$ROOT" commit -q -m "layouts: ${name} ${tag}"
-      else
+      if [[ "$staging" == meta ]]; then
         git -C "$ROOT" add khipro.meta
         git -C "$ROOT" commit -q -m "layouts: ${name} ${tag}"
       fi
@@ -110,15 +106,9 @@ walk_repo() { # <staging> <kind_filter> <name> <repo> <prefix> <mim_src> <mim_de
     # anything changed. A change is committed as a drift commit.
     tip="$(newest_of_kind "$tmp" "$filter")"
     if [[ -n "$tip" ]] && fetch "$repo" "${prefix}-v$tip" "$mim_src" "$mim_dest" \
-       && fetch "$repo" "${prefix}-v$tip" "$tsv_src" "$tsv_dest" \
-       && [[ "$staging" == full ]] && generate_spec_tables \
-       && [[ -n "$(git -C "$ROOT" status --porcelain -- resources core/src/spec_generated.cpp core/src/spec_generated.h)" ]]; then
+       && fetch "$repo" "${prefix}-v$tip" "$tsv_src" "$tsv_dest"        && [[ -n "$(git -C "$ROOT" status --porcelain -- resources)" ]]; then
       walked_here=$((walked_here + 1))
       log "$name: $tip re-released with new content"
-      if [[ "$staging" == full ]]; then
-        git -C "$ROOT" add resources khipro.meta core/src/spec_generated.cpp core/src/spec_generated.h
-        git -C "$ROOT" commit -q -m "layouts: ${name} ${prefix}-v${tip} (content drift)"
-      fi
     fi
   fi
   rm -f "$list" "$tmp"
@@ -183,9 +173,6 @@ if [[ "$MODE" != develop ]]; then
     log "$MODE walk must run on the $expected branch (on: ${branch:-detached})"
     exit 1
   fi
-  # Release-line walks regenerate and commit the spec tables per release.
-  # shellcheck source=../targets/common.sh
-  source "$ROOT/scripts/targets/common.sh"
 fi
 
 mkdir -p "$RESOURCES"
@@ -195,9 +182,9 @@ failed=0
 for layout in "${LAYOUTS[@]}"; do
   IFS='|' read -r name repo prefix mim_src mim_dest tsv_src tsv_dest key <<<"$layout"
   if [[ "$MODE" == stable ]]; then
-    walk_repo full final "$name" "$repo" "$prefix" "$mim_src" "$mim_dest" "$tsv_src" "$tsv_dest" "$key" || failed=1
+    walk_repo none final "$name" "$repo" "$prefix" "$mim_src" "$mim_dest" "$tsv_src" "$tsv_dest" "$key" || failed=1
   elif [[ "$MODE" == beta ]]; then
-    walk_repo full beta "$name" "$repo" "$prefix" "$mim_src" "$mim_dest" "$tsv_src" "$tsv_dest" "$key" || failed=1
+    walk_repo none beta "$name" "$repo" "$prefix" "$mim_src" "$mim_dest" "$tsv_src" "$tsv_dest" "$key" || failed=1
   else
     walk_repo meta any "$name" "$repo" "$prefix" "$mim_src" "$mim_dest" "$tsv_src" "$tsv_dest" "$key" || failed=1
   fi
@@ -212,7 +199,5 @@ fi
 # per sync that took content.
 if [[ "$MODE" != develop && $WALKED -gt 0 ]]; then
   new_version="$(bump_library "$MODE")" || exit 1
-  git -C "$ROOT" add khipro.meta
-  git -C "$ROOT" commit -q -m "chore: library ${new_version}"
-  log "library_version bumped to ${new_version} (${WALKED} layout release(s) taken)"
+  log "library_version bumped to ${new_version} (${WALKED} layout release(s) taken) — committed by the caller after the gate"
 fi

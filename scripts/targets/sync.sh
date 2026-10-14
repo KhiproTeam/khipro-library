@@ -7,17 +7,21 @@
 #   develop  Develop-branch walk (meta-pointer commits, one per upstream
 #            release). Tables regenerate locally for the build; develop is
 #            the union line, nothing releases from it.
-#   stable   Main-branch walk (finals only). The walk commits resources +
-#            meta + tables per taken release plus the library bump, so the
-#            tree must be clean afterwards — then the suites gate the push.
-#            Releases cut from main are full/stable.
+#   stable   Main-branch walk (finals only). Nothing commits until the
+#            suites pass — then meta + regenerated tables + the library
+#            bump land as one commit. Releases cut from main are
+#            full/stable. A failing run commits nothing: fix the cause and
+#            rerun.
 #   beta     Beta-branch walk (betas only). Same contract; bump carries a
 #            -beta suffix. Releases cut from beta are prereleases.
 #   pinned   Release gate: recorded inputs must regenerate the committed
 #            tables byte-identically, then everything builds and passes.
 set -euo pipefail
 
-source "$(dirname "$0")/common.sh"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=../resources/meta.sh
+source "$ROOT/scripts/resources/meta.sh"
+source "$ROOT/scripts/targets/common.sh"
 
 MODE="${1:-fetch}"  # fetch | develop | stable | beta | pinned
 
@@ -44,11 +48,7 @@ case "$MODE" in
     ok "spec tables match the recorded inputs"
     ;;
   stable|beta)
-    if [[ -n "$changed" ]]; then
-      fail "walk left the tree dirty — per-release commits should have covered everything"
-      exit 1
-    fi
-    ok "branch walked, tables committed"
+    ok "walk took content — commit lands after the suites below"
     ;;
   develop)
     if [[ -n "$changed" ]]; then
@@ -69,3 +69,18 @@ esac
 # Build and test exactly what was just generated, natively. KHIPRO_NO_SYNC
 # keeps the linux target from re-fetching; sync.sh already refreshed everything.
 KHIPRO_NO_SYNC=1 KHIPRO_TEST_REQUIRED=1 "$ROOT/scripts/targets/linux.sh"
+
+# Gate passed — now (and only now) commit the generated tables, the pointer
+# moves, and the library bump. A failed run above left the tree dirty on
+# purpose: fix the cause, rerun, and this commit happens then.
+if [[ "$MODE" == stable || "$MODE" == beta ]]; then
+  step "commit"
+  pending="$(git -C "$ROOT" status --porcelain -- khipro.meta core/src/spec_generated.cpp core/src/spec_generated.h)"
+  if [[ -z "$pending" ]]; then
+    skip "nothing to commit (walk took no content)"
+  else
+    git -C "$ROOT" add khipro.meta core/src/spec_generated.cpp core/src/spec_generated.h
+    git -C "$ROOT" commit -q -m "tables: library $(meta_get library_version)"
+    ok "tables: library $(meta_get library_version)"
+  fi
+fi
