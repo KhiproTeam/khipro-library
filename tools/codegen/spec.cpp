@@ -258,8 +258,18 @@ void parse_maps(const std::vector<Sexp>& nodes, const Macros& macros, Spec* spec
       out_entries.push_back(std::move(e));
     }
 
+    // Longest-match-first, and — because std::sort is unstable — a total
+    // deterministic order for equal-length keys (byte-ascending). Without
+    // the tie-break, libstdc++ and libc++ order same-length entries
+    // differently and the "byte-identical regeneration" release gate fails
+    // across platforms.
     std::sort(out_entries.begin(), out_entries.end(),
-              [](const MapEntry& a, const MapEntry& b) { return a.key.size() > b.key.size(); });
+              [](const MapEntry& a, const MapEntry& b) {
+                if (a.key.size() != b.key.size()) {
+                  return a.key.size() > b.key.size();
+                }
+                return a.key < b.key;
+              });
   }
 }
 
