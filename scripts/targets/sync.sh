@@ -45,7 +45,7 @@ case "$MODE" in
       fail "regenerated spec tables differ from the committed ones — tables and khipro.meta have drifted"
       echo "--- drift diff (first 60 lines) ---" >&2
       git -C "$ROOT" diff --stat -- core/src/spec_generated.h core/src/spec_classic.cpp \
-        core/src/spec_classic_touch.cpp core/src/spec_dark.cpp core/src/spec_dark_touch.cpp \
+        core/src/spec_classic_touch.cpp core/src/spec_dark.cpp \
         core/src/spec_dark_touch.cpp 2>/dev/null | head -10 >&2
       git -C "$ROOT" diff -- core/src/spec_generated.h core/src/spec_classic.cpp \
         core/src/spec_classic_touch.cpp core/src/spec_dark.cpp core/src/spec_dark_touch.cpp 2>/dev/null | head -60 >&2
@@ -81,7 +81,9 @@ KHIPRO_NO_SYNC=1 KHIPRO_TEST_REQUIRED=1 "$ROOT/scripts/targets/linux.sh"
 # purpose: fix the cause, rerun, and this commit happens then.
 if [[ "$MODE" == stable || "$MODE" == beta ]]; then
   step "commit"
-  pending="$(git -C "$ROOT" status --porcelain -- khipro.meta core/src/spec_generated.cpp core/src/spec_generated.h)"
+  pending="$(git -C "$ROOT" status --porcelain -- khipro.meta core/src/spec_generated.h \
+    core/src/spec_classic.cpp core/src/spec_classic_touch.cpp \
+    core/src/spec_dark.cpp core/src/spec_dark_touch.cpp)"
   if [[ -z "$pending" ]]; then
     skip "nothing to commit (walk took no content)"
   else

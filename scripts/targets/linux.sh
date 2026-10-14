@@ -48,7 +48,11 @@ fi
 
 step "stage"
 mkdir -p "$OUT/lib"
-cp "$BUILD/core/libkhipro.so" "$OUT/lib/"
+# On macOS the pinned gate runs this script; CMake names the shared library
+# .dylib there instead of .so.
+shlib="$BUILD/core/libkhipro.so"
+[[ -f "$shlib" ]] || shlib="$BUILD/core/libkhipro.dylib"
+cp "$shlib" "$OUT/lib/"
 cp "$BUILD/core/libkhipro.a" "$OUT/lib/"
 stage_c_sdk "$OUT" "$BUILD"
 ok "$OUT"
