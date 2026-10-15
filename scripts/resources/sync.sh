@@ -177,6 +177,24 @@ if [[ "$MODE" != develop ]]; then
   fi
 fi
 
+# Fresh checkouts have no resources (gitignored). Walks with a kind filter
+# only fetch repos that have matching-kind releases, so first make sure every
+# layout's files exist at its recorded pointer before walking.
+for layout in "${LAYOUTS[@]}"; do
+  IFS='|' read -r name repo prefix mim_src mim_dest tsv_src tsv_dest key <<<"$layout"
+  pointer="$(meta_get "$key")"
+  [[ -z "$pointer" ]] && continue
+  if [[ ! -s "$RESOURCES/$mim_dest" || ! -s "$RESOURCES/$tsv_dest" ]]; then
+    if fetch "$repo" "${prefix}-v${pointer}" "$mim_src" "$mim_dest" \
+       && fetch "$repo" "${prefix}-v${pointer}" "$tsv_src" "$tsv_dest"; then
+      log "$name: fetched missing files at ${prefix}-v${pointer}"
+    else
+      log "$name: missing files and pointer fetch failed (${prefix}-v${pointer})"
+      exit 1
+    fi
+  fi
+done
+
 WALKED=0
 failed=0
 for layout in "${LAYOUTS[@]}"; do
