@@ -36,7 +36,9 @@ concurrency:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    # Pinned: the ubuntu-latest label migrates to Ubuntu 26 (Oct 2026) —
+    # keep the environment the releases were proven on.
+    runs-on: ubuntu-24.04
     outputs:
       skip: ${{ steps.check.outputs.skip }}
       tag: ${{ steps.check.outputs.tag }}
@@ -62,6 +64,30 @@ jobs:
       # -------------------------------------------------------------------
       - name: Pin inputs, verify spec tables, build + test
         run: ./scripts/build.sh sync pinned
+
+      # Same ergonomics as Layout Sync: surface the parked ctest/sync logs
+      # a red gate hides behind "see /tmp/...".
+      - name: Dump parked logs (sync/test)
+        if: failure()
+        run: |
+          for log in /tmp/khipro-sync.log /tmp/khipro-test.log /tmp/khipro-codegen.log; do
+            if [[ -s "$log" ]]; then
+              echo "--- $log ---"
+              cat "$log"
+            fi
+          done
+
+      - name: Attach parked logs (sync/test)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-gate-logs-${{ github.run_id }}
+          path: |
+            /tmp/khipro-sync.log
+            /tmp/khipro-test.log
+            /tmp/khipro-codegen.log
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Decide if release is needed
         id: check
@@ -222,6 +248,16 @@ jobs:
 
       - name: Pin inputs and verify spec tables
         run: ./scripts/build.sh sync pinned
+
+      - name: Dump parked logs (sync/test)
+        if: failure()
+        run: |
+          for log in /tmp/khipro-sync.log /tmp/khipro-test.log /tmp/khipro-codegen.log; do
+            if [[ -s "$log" ]]; then
+              echo "--- $log ---"
+              cat "$log"
+            fi
+          done
 
       - name: Build + test universal macOS library
         env:

@@ -32,7 +32,9 @@ concurrency:
 
 jobs:
   sync:
-    runs-on: ubuntu-latest
+    # Pinned: the ubuntu-latest label migrates to Ubuntu 26 (Oct 2026) —
+    # keep the environment the walks were proven on.
+    runs-on: ubuntu-24.04
     steps:
       - name: Resolve branch
         id: br
@@ -75,6 +77,32 @@ jobs:
 
       - name: Walk releases, regenerate tables, build + test
         run: ./scripts/build.sh sync ${{ inputs.channel }}
+
+      # The build scripts park their detailed logs in /tmp (ctest output,
+      # sync walk log) and only surface a one-line "see /tmp/..." on
+      # failure. Print and attach them so a red run is diagnosable from
+      # the Actions page alone.
+      - name: Dump parked logs (sync/test)
+        if: failure()
+        run: |
+          for log in /tmp/khipro-sync.log /tmp/khipro-test.log /tmp/khipro-codegen.log; do
+            if [[ -s "$log" ]]; then
+              echo "--- $log ---"
+              cat "$log"
+            fi
+          done
+
+      - name: Attach parked logs (sync/test)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-logs-${{ inputs.channel }}-${{ github.run_id }}
+          path: |
+            /tmp/khipro-sync.log
+            /tmp/khipro-test.log
+            /tmp/khipro-codegen.log
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Push the walked commits
         run: git push origin HEAD:${{ steps.br.outputs.branch }}
