@@ -1,6 +1,7 @@
 #include "spec.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <map>
 #include <stdexcept>
 #include <utility>
@@ -328,6 +329,53 @@ Macros collect_macros(const std::vector<Sexp>& root) {
   return macros;
 }
 
+// Touch dot-overflow bridge. The touchscreen layouts declare the dot
+// overflow machinery — the `dot` map, `dot_state`, and the biram-rule cond
+// ((= overflow 1) (shift dot_state)) — but their biram map drops the
+// desktop dot keys for touchscreen, leaving nothing that sets overflow 1
+// and making dot_state unreachable. Their released testcases still expect
+// the desktop collapse (........ -> .......), matching the comma overflow
+// they kept ((,,," (set overflow 2) ",,")). When a layout declares
+// dot_state but no biram entry sets overflow 1, inject the desktop-verbatim
+// entry ("...." (set overflow 1) "...") so the declared machinery works.
+// Layouts that already set overflow 1 (all desktop mims) are untouched.
+void bridge_touch_dot_overflow(Spec* spec) {
+  if (spec->states.find("dot_state") == spec->states.end()) {
+    return;
+  }
+  const auto biram = spec->maps.find("biram");
+  if (biram == spec->maps.end()) {
+    return;
+  }
+  for (const auto& entry : biram->second) {
+    for (const auto& action : entry.actions) {
+      if (action.type == ActionType::Set && action.s1 == "overflow" && action.s2 == "1") {
+        return;  // The layout sets overflow 1 itself — nothing to bridge.
+      }
+    }
+  }
+
+  MapEntry bridged;
+  bridged.key = "....";
+  Action set_overflow;
+  set_overflow.type = ActionType::Set;
+  set_overflow.s1 = "overflow";
+  set_overflow.s2 = "1";
+  Action insert;
+  insert.type = ActionType::Insert;
+  insert.s1 = "...";
+  bridged.actions = {set_overflow, insert};
+  biram->second.push_back(bridged);
+  std::sort(biram->second.begin(), biram->second.end(),
+            [](const MapEntry& a, const MapEntry& b) {
+              if (a.key.size() != b.key.size()) {
+                return a.key.size() > b.key.size();
+              }
+              return a.key < b.key;
+            });
+  std::fprintf(stderr, "codegen: bridged touch biram dot overflow (\"....\" entry injected)\n");
+}
+
 }  // namespace
 
 Spec parse_spec(const std::string& spec_text) {
@@ -348,6 +396,7 @@ Spec parse_spec(const std::string& spec_text) {
       parse_states(std::vector<Sexp>(node.list.begin() + 1, node.list.end()), macros, &spec);
     }
   }
+  bridge_touch_dot_overflow(&spec);
   return spec;
 }
 
