@@ -151,7 +151,8 @@ bool Engine::eval_cond(const Condition& cond, const Vars& vars) const {
 }
 
 void Engine::execute_actions(const std::vector<Action>& actions, std::u32string* out, std::size_t* cursor,
-                             Vars* vars, Marks* marks, std::string* state_name) const {
+                             Vars* vars, Marks* marks, std::string* state_name,
+                             bool entry_silent) const {
   for (const auto& action : actions) {
     switch (action.type) {
       case ActionType::Set: {
@@ -225,7 +226,20 @@ void Engine::execute_actions(const std::vector<Action>& actions, std::u32string*
         break;
       }
       case ActionType::Shift: {
-        *state_name = action.s1;
+        std::string target = action.s1;
+        // Silent-vowel rule (dark 2.0 layouts): a map entry with an empty
+        // production — kar "o", the inherent vowel — leaves the composition
+        // in vowel context. The layout's kar rule wants to shift into its
+        // fusion state on a multi-consonant buffer, but a vowel, even a
+        // silent one, terminates the cluster: redirect that shift to the
+        // vowel state so a following "/" is a chandrabindu rather than a
+        // conjunct former (kso/ -> কসঁ, mirroring to/ -> তঁ). Layouts
+        // without a fusion_possible state are unaffected.
+        if (entry_silent && target == "fusion_possible" &&
+            spec_.states.count("shor_state") != 0) {
+          target = "shor_state";
+        }
+        *state_name = target;
         auto state_it = spec_.states.find(*state_name);
         if (state_it != spec_.states.end()) {
           execute_actions(state_it->second.entry_actions, out, cursor, vars, marks, state_name);
@@ -245,7 +259,7 @@ void Engine::execute_actions(const std::vector<Action>& actions, std::u32string*
       case ActionType::CondBranch: {
         for (const auto& branch : action.branches) {
           if (eval_cond(branch.condition, *vars)) {
-            execute_actions(branch.actions, out, cursor, vars, marks, state_name);
+            execute_actions(branch.actions, out, cursor, vars, marks, state_name, entry_silent);
             break;
           }
         }
@@ -309,6 +323,17 @@ std::string Engine::run_conversion(const std::string& input) const {
 
     const Match match = find_match(state_it->second, input, i);
     if (!match.entry || !match.rule) {
+      if (current_state != "init") {
+        // A key no rule of the current state handles restarts the
+        // composition: switch to init and re-process the key there instead
+        // of passing it through as a literal (dark 2.0 relies on this for
+        // consonants typed in the fusion state — cndrbindu -> চনদরবিনদু).
+        // If init cannot handle it either, the fallthrough below emits the
+        // literal character.
+        current_state = "init";
+        apply_entry(current_state);
+        continue;
+      }
       const unsigned char b0 = static_cast<unsigned char>(input[i]);
       const std::size_t len = std::min(utf8_char_len(b0), input.size() - i);
       const std::u32string cp = utf8_to_u32(input.substr(i, len));
@@ -325,8 +350,18 @@ std::string Engine::run_conversion(const std::string& input) const {
       continue;
     }
 
+    // A matched entry with no Insert action is "silent" (an empty
+    // production, e.g. the inherent vowel "o" in the dark kar map).
+    bool entry_silent = true;
+    for (const auto& action : match.entry->actions) {
+      if (action.type == ActionType::Insert) {
+        entry_silent = false;
+        break;
+      }
+    }
+
     execute_actions(match.entry->actions, &out, &cursor, &vars, &marks, &current_state);
-    execute_actions(match.rule->actions, &out, &cursor, &vars, &marks, &current_state);
+    execute_actions(match.rule->actions, &out, &cursor, &vars, &marks, &current_state, entry_silent);
     cursor = std::min(cursor, out.size());
     i += match.entry->key.size();
   }
