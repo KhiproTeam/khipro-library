@@ -11,8 +11,8 @@ license=MIT
 author=KhiproTeam
 
 # Versions (independent)
-library_version=2.0.1
+library_version=2.0.2
 khipro_classic_version=37.0.3
 khipro_touchscreen_classic_version=37.0.3
-khipro_dark_version=2.0.1-beta
-khipro_touchscreen_dark_version=2.0.0
+khipro_dark_version=2.0.2
+khipro_touchscreen_dark_version=2.0.2

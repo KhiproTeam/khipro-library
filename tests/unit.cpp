@@ -292,6 +292,48 @@ int main() {
   expect_abort("pod-abort-cond-operand-out-of-range", aborts_on_cond_operand_out_of_range);
 #endif
 
+  // --- m17n incremental-prefix semantics -----------------------------------
+  // Real m17n matches keys incrementally: when a shorter key of the state is
+  // extended to a longer one, the shorter key fires first and its text is
+  // rolled back, but its Set actions persist into the longer key's run
+  // (probed against libm17n 1.8.7; cross-map leak confirmed).
+  {
+    const std::string zwj = "\xE2\x80\x8D";  // U+200D, the ra-fixup joiner
+
+    // Same-map chain: kar "ae" (set KAR 1 + insert) extended by "aef"; the
+    // state rule observes KAR == 1 — the leaked set — on the winner's run.
+    {
+      Spec spec;
+      spec.maps["kar"] = {MapEntry{"ae", {act_set("KAR", "1"), act_insert("্যা")}},
+                          MapEntry{"aef", {act_insert("অ্যা")}}};
+      spec.states["init"] = StateDef{"init", {},
+                                     {StateRule{"kar", {act_cond(cond_eq("KAR", 1), {act_insert("*")})}}}};
+      Engine engine(std::move(spec));
+      expect("prefix-leak-same-map", engine.convert("aef"), "অ্যা*");
+    }
+
+    // Cross-map chain: the prefix lives in a different state-listed map than
+    // the winner (m17n leaks across all maps of the current state).
+    {
+      Spec spec;
+      spec.maps["m1"] = {MapEntry{"ae", {act_set("K", "5"), act_insert("A")}}};
+      spec.maps["m2"] = {MapEntry{"aef", {act_insert("B")}}};
+      spec.states["init"] = StateDef{"init", {},
+                                     {StateRule{"m1", {}},
+                                      StateRule{"m2", {act_cond(cond_eq("K", 5), {act_insert("!")})}}}};
+      Engine engine(std::move(spec));
+      expect("prefix-leak-cross-map", engine.convert("aef"), "B!");
+    }
+
+    // The real classic layout: raef must carry the ra-fixup ZWJ like m17n.
+    {
+      Engine engine(classic_spec());
+      expect("classic-raef-zwj", engine.convert("raef"), "রঅ" + zwj + "্যা");
+      expect("classic-rae-zwj", engine.convert("rae"), "র" + zwj + "্যা");
+    }
+    checks += 4;
+  }
+
   if (failures != 0) {
     std::cerr << failures << " unit test(s) failed\n";
     return 1;
