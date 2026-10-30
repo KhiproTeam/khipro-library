@@ -38,8 +38,8 @@ class Engine {
 
   Match find_match(const StateDef& state, const std::string& input, std::size_t index) const;
   void execute_actions(const std::vector<Action>& actions, std::u32string* out, std::size_t* cursor,
-                       Vars* vars, Marks* marks, std::string* state_name,
-                       bool entry_silent = false) const;
+                       Vars* vars, Marks* marks, std::string* state_name) const;
+  void apply_prefix_leaked_sets(const StateDef& state, const std::string& key, Vars* vars) const;
   bool eval_cond(const Condition& cond, const Vars& vars) const;
   std::string run_conversion(const std::string& input) const;
   void recompute_preedit();

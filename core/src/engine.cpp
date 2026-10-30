@@ -37,6 +37,21 @@ void shift_marks_delete(std::unordered_map<std::string, std::size_t>* marks, std
   }
 }
 
+// Resolves a Set action's operand: a variable name reads the current value,
+// anything else parses as an integer literal.
+int resolve_set_value(const std::string& operand, const std::unordered_map<std::string, int>& vars) {
+  auto it = vars.find(operand);
+  if (it != vars.end()) {
+    return it->second;
+  }
+  char* end = nullptr;
+  const long parsed = std::strtol(operand.c_str(), &end, 10);
+  if (end != operand.c_str() && *end == '\0') {
+    return static_cast<int>(parsed);
+  }
+  return 0;
+}
+
 }  // namespace
 
 Engine::Engine(Spec spec) : spec_(std::move(spec)) { reset(); }
@@ -150,24 +165,49 @@ bool Engine::eval_cond(const Condition& cond, const Vars& vars) const {
   return false;
 }
 
+// m17n's incremental matcher fires a shorter key eagerly; when a longer key
+// of the same state extends it, the shorter key's inserted text is rolled
+// back but its Set actions persist (verified against libm17n 1.8.7, including
+// the cross-map case). An offline conversion must replay those leaked sets
+// before the winning entry runs, or prefix chains like kar "ae"/"aef" lose
+// variable state (classic "raef" misses the ra-fixup ZWJ without this).
+void Engine::apply_prefix_leaked_sets(const StateDef& state, const std::string& key,
+                                      Vars* vars) const {
+  auto apply_sets = [&](const std::vector<Action>& actions, auto&& self) -> void {
+    for (const auto& action : actions) {
+      if (action.type == ActionType::Set) {
+        (*vars)[action.s1] = resolve_set_value(action.s2, *vars);
+      } else if (action.type == ActionType::CondBranch) {
+        for (const auto& branch : action.branches) {
+          if (eval_cond(branch.condition, *vars)) {
+            self(branch.actions, self);
+            break;
+          }
+        }
+      }
+    }
+  };
+  for (std::size_t plen = 1; plen < key.size(); ++plen) {
+    for (const auto& rule : state.rules) {
+      auto map_it = spec_.maps.find(rule.map_name);
+      if (map_it == spec_.maps.end()) {
+        continue;
+      }
+      for (const auto& entry : map_it->second) {
+        if (entry.key.size() == plen && key.compare(0, plen, entry.key) == 0) {
+          apply_sets(entry.actions, apply_sets);
+        }
+      }
+    }
+  }
+}
+
 void Engine::execute_actions(const std::vector<Action>& actions, std::u32string* out, std::size_t* cursor,
-                             Vars* vars, Marks* marks, std::string* state_name,
-                             bool entry_silent) const {
+                             Vars* vars, Marks* marks, std::string* state_name) const {
   for (const auto& action : actions) {
     switch (action.type) {
       case ActionType::Set: {
-        int value = 0;
-        auto it = vars->find(action.s2);
-        if (it != vars->end()) {
-          value = it->second;
-        } else {
-          char* end = nullptr;
-          const long parsed = std::strtol(action.s2.c_str(), &end, 10);
-          if (end != action.s2.c_str() && *end == '\0') {
-            value = static_cast<int>(parsed);
-          }
-        }
-        (*vars)[action.s1] = value;
+        (*vars)[action.s1] = resolve_set_value(action.s2, *vars);
         break;
       }
       case ActionType::Insert: {
@@ -226,20 +266,13 @@ void Engine::execute_actions(const std::vector<Action>& actions, std::u32string*
         break;
       }
       case ActionType::Shift: {
-        std::string target = action.s1;
-        // Silent-vowel rule (dark 2.0 layouts): a map entry with an empty
-        // production — kar "o", the inherent vowel — leaves the composition
-        // in vowel context. The layout's kar rule wants to shift into its
-        // fusion state on a multi-consonant buffer, but a vowel, even a
-        // silent one, terminates the cluster: redirect that shift to the
-        // vowel state so a following "/" is a chandrabindu rather than a
-        // conjunct former (kso/ -> কসঁ, mirroring to/ -> তঁ). Layouts
-        // without a fusion_possible state are unaffected.
-        if (entry_silent && target == "fusion_possible" &&
-            spec_.states.count("shor_state") != 0) {
-          target = "shor_state";
-        }
-        *state_name = target;
+        // The state shift target comes from the layout itself; the dark 2.0
+        // kar rules already branch on the consonant buffer (CnstBufr == 1 ->
+        // shor_state, CnstBufr > 1 -> fusion_possible), which is exactly the
+        // reference m17n behavior: a silent inherent vowel keeps the cluster
+        // fusion context (kso/ -> ক্স) and only ends it on a single
+        // consonant (to/ -> তঁ). No engine-side override.
+        *state_name = action.s1;
         auto state_it = spec_.states.find(*state_name);
         if (state_it != spec_.states.end()) {
           execute_actions(state_it->second.entry_actions, out, cursor, vars, marks, state_name);
@@ -259,7 +292,7 @@ void Engine::execute_actions(const std::vector<Action>& actions, std::u32string*
       case ActionType::CondBranch: {
         for (const auto& branch : action.branches) {
           if (eval_cond(branch.condition, *vars)) {
-            execute_actions(branch.actions, out, cursor, vars, marks, state_name, entry_silent);
+            execute_actions(branch.actions, out, cursor, vars, marks, state_name);
             break;
           }
         }
@@ -350,18 +383,11 @@ std::string Engine::run_conversion(const std::string& input) const {
       continue;
     }
 
-    // A matched entry with no Insert action is "silent" (an empty
-    // production, e.g. the inherent vowel "o" in the dark kar map).
-    bool entry_silent = true;
-    for (const auto& action : match.entry->actions) {
-      if (action.type == ActionType::Insert) {
-        entry_silent = false;
-        break;
-      }
-    }
-
+    // Prefix-chain leak: apply the shorter keys' Set actions first (m17n
+    // incremental semantics — see apply_prefix_leaked_sets).
+    apply_prefix_leaked_sets(state_it->second, match.entry->key, &vars);
     execute_actions(match.entry->actions, &out, &cursor, &vars, &marks, &current_state);
-    execute_actions(match.rule->actions, &out, &cursor, &vars, &marks, &current_state, entry_silent);
+    execute_actions(match.rule->actions, &out, &cursor, &vars, &marks, &current_state);
     cursor = std::min(cursor, out.size());
     i += match.entry->key.size();
   }
